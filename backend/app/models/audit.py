@@ -20,7 +20,7 @@ class AuditLog(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     agent_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("agents.id"))
     action: Mapped[str] = mapped_column(String(100), nullable=False)
-    details: Mapped[dict] = mapped_column(JSON, default={})
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
     ip_address: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
@@ -33,7 +33,7 @@ class ApprovalRequest(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=False)
     action_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    details: Mapped[dict] = mapped_column(JSON, default={})
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(
         Enum("pending", "approved", "rejected", name="approval_status_enum"),
         default="pending",
@@ -74,7 +74,7 @@ class EnterpriseInfo(Base):
     info_type: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)  # org_structure, company_profile, etc.
     content: Mapped[dict] = mapped_column(JSON, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    visible_roles: Mapped[list] = mapped_column(JSON, default=[])  # Which agent roles can see this
+    visible_roles: Mapped[list] = mapped_column(JSON, default=list)  # Which agent roles can see this
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

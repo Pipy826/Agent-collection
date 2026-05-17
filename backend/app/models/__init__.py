@@ -1,0 +1,29 @@
+"""Import all SQLAlchemy models so Base.metadata is complete."""
+
+from app.models import activity_log  # noqa: F401
+from app.models import agent  # noqa: F401
+from app.models import agent_credential  # noqa: F401
+from app.models import agent_node  # noqa: F401
+from app.models import audit  # noqa: F401
+from app.models import channel_config  # noqa: F401
+from app.models import chat_session  # noqa: F401
+from app.models import gateway_message  # noqa: F401
+from app.models import identity  # noqa: F401
+from app.models import invitation_code  # noqa: F401
+from app.models import llm  # noqa: F401
+from app.models import notification  # noqa: F401
+from app.models import okr  # noqa: F401
+from app.models import org  # noqa: F401
+from app.models import participant  # noqa: F401
+from app.models import plaza  # noqa: F401
+from app.models import published_page  # noqa: F401
+from app.models import schedule  # noqa: F401
+from app.models import skill  # noqa: F401
+from app.models import system_settings  # noqa: F401
+from app.models import task  # noqa: F401
+from app.models import tenant  # noqa: F401
+from app.models import tenant_setting  # noqa: F401
+from app.models import tool  # noqa: F401
+from app.models import trigger  # noqa: F401
+from app.models import user  # noqa: F401
+from app.models import workspace  # noqa: F401

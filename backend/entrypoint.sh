@@ -44,7 +44,8 @@ if [ $ALEMBIC_EXIT -ne 0 ]; then
     echo "    Source:  git pull && alembic upgrade head"
     echo "------------------------------------------------------------------------"
     echo ""
-    echo "[entrypoint] Continuing startup despite migration failure..."
+    echo "[entrypoint] Refusing to start with an incomplete database schema."
+    exit $ALEMBIC_EXIT
 else
     echo "[entrypoint] Alembic migrations completed successfully."
 fi

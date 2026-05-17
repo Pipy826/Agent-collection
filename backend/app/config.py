@@ -3,6 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 from app.services.sandbox.config import SandboxConfig, SandboxType
@@ -70,6 +71,25 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://opencode:opencode@localhost:5432/opencode"
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def normalize_sqlite_database_url(cls, value: str) -> str:
+        """Resolve relative SQLite DB paths from the backend directory."""
+        prefixes = ("sqlite+aiosqlite:///", "sqlite:///")
+        for prefix in prefixes:
+            if not value.startswith(prefix):
+                continue
+            raw_path = value[len(prefix):]
+            if not raw_path or raw_path == ":memory:":
+                return value
+            path = Path(raw_path)
+            if path.is_absolute():
+                return value
+            backend_dir = Path(__file__).resolve().parent.parent
+            absolute = (backend_dir / path).resolve().as_posix()
+            return f"{prefix}{absolute}"
+        return value
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

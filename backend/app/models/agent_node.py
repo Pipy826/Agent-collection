@@ -36,7 +36,7 @@ class AgentNode(Base):
     status: Mapped[str] = mapped_column(String(20), default="idle", nullable=False)
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[str | None] = mapped_column(String(50))
-    config: Mapped[dict] = mapped_column(JSON, default={})
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

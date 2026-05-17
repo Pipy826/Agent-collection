@@ -152,9 +152,12 @@ async def lifespan(app: FastAPI):
         import app.models.okr            # noqa  OKR system tables
 
         import app.models.identity       # noqa
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("[startup] Database tables ready")
+        if settings.DATABASE_URL.startswith("sqlite"):
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("[startup] SQLite development tables ready")
+        else:
+            logger.info("[startup] Skipping create_all; schema is managed by Alembic")
     except Exception as e:
         logger.warning(f"[startup] create_all failed: {e}")
     # Startup: seed data — each step isolated so one failure doesn't block others

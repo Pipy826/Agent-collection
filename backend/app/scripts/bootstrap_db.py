@@ -13,20 +13,26 @@ import app.models.audit  # noqa: F401
 import app.models.channel_config  # noqa: F401
 import app.models.chat_session  # noqa: F401
 import app.models.gateway_message  # noqa: F401
+import app.models.identity  # noqa: F401
 import app.models.invitation_code  # noqa: F401
 import app.models.llm  # noqa: F401
 import app.models.notification  # noqa: F401
+import app.models.agent_node  # noqa: F401
+import app.models.okr  # noqa: F401
 import app.models.org  # noqa: F401
 import app.models.participant  # noqa: F401
 import app.models.plaza  # noqa: F401
+import app.models.published_page  # noqa: F401
 import app.models.schedule  # noqa: F401
 import app.models.skill  # noqa: F401
 import app.models.system_settings  # noqa: F401
 import app.models.task  # noqa: F401
 import app.models.tenant  # noqa: F401
+import app.models.tenant_setting  # noqa: F401
 import app.models.tool  # noqa: F401
 import app.models.trigger  # noqa: F401
 import app.models.user  # noqa: F401
+import app.models.workspace  # noqa: F401
 
 
 PATCHES = [
@@ -60,7 +66,7 @@ PATCHES = [
     "ALTER TABLE daily_token_usage ADD COLUMN IF NOT EXISTS estimated_tokens INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_type VARCHAR(20) NOT NULL DEFAULT 'native'",
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS api_key_hash VARCHAR(128)",
-    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS openclaw_last_seen TIMESTAMPTZ",
+    "ALTER TABLE agents ADD COLUMN IF NOT EXISTS opencode_last_seen TIMESTAMPTZ",
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sso_enabled BOOLEAN DEFAULT FALSE",
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sso_domain VARCHAR(255)",
     "CREATE UNIQUE INDEX IF NOT EXISTS ux_tenants_sso_domain ON tenants(sso_domain) WHERE sso_domain IS NOT NULL",

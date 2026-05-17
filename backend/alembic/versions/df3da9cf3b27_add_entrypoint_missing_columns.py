@@ -42,7 +42,7 @@ def upgrade() -> None:
     op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS tokens_used_total INTEGER DEFAULT 0")
     op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_type VARCHAR(20) NOT NULL DEFAULT 'native'")
     op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS api_key_hash VARCHAR(128)")
-    op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS openclaw_last_seen TIMESTAMPTZ")
+    op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS opencode_last_seen TIMESTAMPTZ")
 
     # 3. AgentTools table (Tool assignment tracking)
     op.execute("ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'system'")

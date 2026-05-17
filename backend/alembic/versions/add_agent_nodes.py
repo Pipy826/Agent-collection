@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision = "add_agent_nodes"
-down_revision = "user_refactor"
+down_revision = "user_refactor_v1"
 branch_labels = None
 depends_on = None
 
