@@ -124,18 +124,15 @@ def update_wechat_context_cache(
 ) -> dict[str, Any]:
     extra = dict(extra_config or {})
     cache = dict(extra.get(WECHAT_CONTEXT_CACHE_KEY) or {})
+    cache.pop(from_user_id, None)
     cache[from_user_id] = {
         "context_token": context_token,
         "conv_id": conv_id,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    if len(cache) > WECHAT_CONTEXT_CACHE_LIMIT:
-        ordered = sorted(
-            cache.items(),
-            key=lambda item: str((item[1] or {}).get("updated_at") or ""),
-            reverse=True,
-        )
-        cache = dict(ordered[:WECHAT_CONTEXT_CACHE_LIMIT])
+    while len(cache) > WECHAT_CONTEXT_CACHE_LIMIT:
+        oldest_key = next(iter(cache))
+        cache.pop(oldest_key, None)
     extra[WECHAT_CONTEXT_CACHE_KEY] = cache
     return extra
 

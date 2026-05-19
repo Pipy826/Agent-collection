@@ -17,6 +17,7 @@ interface Template {
     is_builtin: boolean;
     capability_bullets?: string[];
     has_bootstrap?: boolean;
+    available?: boolean;
 }
 
 interface Props {
@@ -306,6 +307,7 @@ export default function TalentMarketModal({ open, onClose }: Props) {
                                 icon: agent.icon || 'AI',
                                 category: 'Enterprise',
                                 is_builtin: false,
+                                available: !agent.is_expired,
                             }}
                             hiring={requestingAgentId === agent.id}
                             isChinese={isChinese}
@@ -353,6 +355,7 @@ function TemplateCard({ tpl, hiring, isChinese, onHire }: {
     const bullets = localized.bullets.length
         ? localized.bullets
         : [localized.description].filter(Boolean);
+    const isAvailable = tpl.available !== false;
 
     return (
         <div style={{
@@ -360,7 +363,10 @@ function TemplateCard({ tpl, hiring, isChinese, onHire }: {
             padding: '18px', display: 'flex', flexDirection: 'column',
             background: 'var(--bg-primary)',
             transition: 'border-color 120ms',
+            position: 'relative',
+            overflow: 'hidden',
         }}>
+            <FlowerBadge available={isAvailable} />
             <div style={{
                 width: '40px', height: '40px', borderRadius: '8px',
                 background: 'var(--bg-secondary)',
@@ -394,11 +400,63 @@ function TemplateCard({ tpl, hiring, isChinese, onHire }: {
             <button
                 className="btn btn-primary"
                 onClick={onHire}
-                disabled={hiring}
+                disabled={hiring || !isAvailable}
                 style={{ marginTop: '16px', width: '100%' }}
             >
-                {hiring ? t('talentMarket.hiring', isChinese ? '聘用中…' : 'Hiring...') : t('talentMarket.hire', isChinese ? '聘用' : 'Hire')}
+                {hiring
+                    ? t('talentMarket.hiring', isChinese ? '聘用中…' : 'Hiring...')
+                    : !isAvailable
+                        ? (isChinese ? '不可使用' : 'Unavailable')
+                        : t('talentMarket.hire', isChinese ? '聘用' : 'Hire')}
             </button>
+        </div>
+    );
+}
+
+function FlowerBadge({ available }: { available: boolean }) {
+    const petalColor = available ? '#f38bb5' : '#d8dbe2';
+    const centerColor = available ? '#f8c7d9' : '#f3f4f6';
+    const shadowColor = available ? 'rgba(243, 139, 181, 0.22)' : 'rgba(148, 163, 184, 0.18)';
+
+    const petalStyle = (top: string, left: string, rotate: string) => ({
+        position: 'absolute' as const,
+        top,
+        left,
+        width: '10px',
+        height: '10px',
+        borderRadius: '999px 999px 999px 2px',
+        background: petalColor,
+        boxShadow: `0 1px 2px ${shadowColor}`,
+        transform: `rotate(${rotate})`,
+    });
+
+    return (
+        <div
+            aria-hidden="true"
+            style={{
+                position: 'absolute',
+                top: '12px',
+                right: '12px',
+                width: '24px',
+                height: '24px',
+            }}
+        >
+            <span style={petalStyle('1px', '7px', '0deg')} />
+            <span style={petalStyle('7px', '13px', '90deg')} />
+            <span style={petalStyle('13px', '7px', '180deg')} />
+            <span style={petalStyle('7px', '1px', '270deg')} />
+            <span
+                style={{
+                    position: 'absolute',
+                    top: '8px',
+                    left: '8px',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '999px',
+                    background: centerColor,
+                    boxShadow: `0 0 0 1px ${available ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.82)'}`,
+                }}
+            />
         </div>
     );
 }

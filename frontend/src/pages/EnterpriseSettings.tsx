@@ -4283,6 +4283,10 @@ export default function EnterpriseSettings() {
                             {/* ─── Category-grouped tool list ─── */}
                             {(() => {
                                 const normalizedSearch = toolSearch.trim().toLowerCase();
+                                const getLocalizedToolName = (tool: any) =>
+                                    t(`agent.tools.toolNames.${tool.name}`, { defaultValue: tool.display_name || tool.name });
+                                const getLocalizedToolDescription = (tool: any) =>
+                                    t(`agent.tools.toolDescriptions.${tool.name}`, { defaultValue: tool.description || '' });
                                 const matchesSearch = (tool: any) => {
                                     if (!normalizedSearch) return true;
                                     const category = tool.category || 'general';
@@ -4290,6 +4294,8 @@ export default function EnterpriseSettings() {
                                         tool.name,
                                         tool.display_name,
                                         tool.description,
+                                        getLocalizedToolName(tool),
+                                        getLocalizedToolDescription(tool),
                                         tool.mcp_server_name,
                                         category,
                                         categoryLabels[category],
@@ -4336,6 +4342,8 @@ export default function EnterpriseSettings() {
                                     const hasCategoryConfig = !!GLOBAL_CATEGORY_CONFIG_SCHEMAS[category];
                                     const hasOwnConfig = tool.config_schema?.fields?.length > 0 && !hasCategoryConfig;
                                     const isConfigured = tool.config && Object.keys(tool.config).length > 0;
+                                    const localizedName = getLocalizedToolName(tool);
+                                    const localizedDescription = getLocalizedToolDescription(tool);
                                     return (
                                         <div key={tool.id} style={{
                                             display: 'grid',
@@ -4349,7 +4357,7 @@ export default function EnterpriseSettings() {
                                         }}>
                                             <div style={{ minWidth: 0 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexWrap: 'wrap' }}>
-                                                    <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tool.display_name}</span>
+                                                    <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{localizedName}</span>
                                                     <span style={{ fontSize: '10px', background: tool.type === 'mcp' ? 'var(--primary)' : 'var(--bg-tertiary)', color: tool.type === 'mcp' ? '#fff' : 'var(--text-secondary)', borderRadius: '4px', padding: '1px 5px', flexShrink: 0 }}>
                                                         {tool.type === 'mcp' ? 'MCP' : 'Built-in'}
                                                     </span>
@@ -4357,7 +4365,7 @@ export default function EnterpriseSettings() {
                                                     {isConfigured && <span style={{ fontSize: '10px', background: 'rgba(99,102,241,0.15)', color: 'var(--accent-color)', borderRadius: '4px', padding: '1px 5px', flexShrink: 0 }}>{t('enterprise.tools.configured', 'Configured')}</span>}
                                                 </div>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {tool.description}
+                                                    {localizedDescription}
                                                     {tool.mcp_server_name && <span> · {tool.mcp_server_name}</span>}
                                                 </div>
                                             </div>

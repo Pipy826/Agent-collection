@@ -8,7 +8,7 @@ Validates the branching logic in _send_message_to_agent:
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -467,7 +467,13 @@ async def test_wake_agent_async_calls_trigger_daemon():
 
     with patch("app.services.trigger_daemon.wake_agent_with_context", new_callable=AsyncMock) as mock_wake:
         await _wake_agent_async(agent_id, context)
-        mock_wake.assert_awaited_once_with(agent_id, context, from_agent_id=None, skip_dedup=False)
+        mock_wake.assert_awaited_once_with(
+            agent_id,
+            context,
+            from_agent_id=None,
+            skip_dedup=False,
+            a2a_session_id=None,
+        )
 
 
 @pytest.mark.asyncio
@@ -483,7 +489,7 @@ async def test_opencode_target_still_queues():
     tgt_participant = _make_participant(ref_id=target_id)
     source_agent = _make_agent(from_agent_id, name="Alice")
     target_agent = _make_agent(target_id, name="OpenCodeBot", agent_type="opencode")
-    target_agent.opencode_last_seen = datetime.now(UTC)
+    target_agent.opencode_last_seen = datetime.now(timezone.utc)
 
     session = MagicMock()
     session.id = session_id

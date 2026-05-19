@@ -83,6 +83,140 @@ export interface ChatMessage {
     created_at: string;
 }
 
+export interface MemoryDocument {
+    id: string;
+    tenant_id?: string;
+    agent_id?: string;
+    user_id?: string;
+    created_by?: string;
+    scope: string;
+    memory_type: string;
+    title: string;
+    content: string;
+    source_type: string;
+    source_ref_id?: string;
+    metadata_json: Record<string, any>;
+    importance_score: number;
+    visibility: string;
+    is_verified: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MemorySearchItem {
+    source: 'memory' | 'golden_example' | 'enterprise_kb';
+    score: number;
+    title: string;
+    content: string;
+    memory_id?: string;
+    golden_example_id?: string;
+    metadata: Record<string, any>;
+}
+
+export interface AnswerFeedback {
+    id: string;
+    message_id: string;
+    agent_id: string;
+    user_id: string;
+    feedback_type: 'upvote' | 'downvote';
+    comment?: string;
+    corrected_answer?: string;
+    question_snapshot?: string;
+    normalized_question?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface GoldenExample {
+    id: string;
+    tenant_id?: string;
+    agent_id?: string;
+    source_feedback_id?: string;
+    question: string;
+    normalized_question: string;
+    correct_answer: string;
+    status: 'pending_review' | 'approved' | 'rejected' | 'active';
+    tags: string[];
+    review_note?: string;
+    reviewed_by?: string;
+    reviewed_at?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface KnowledgeGap {
+    question_cluster: string;
+    frequency: number;
+    affected_agent_ids: string[];
+    active_example_count: number;
+    pending_feedback_count: number;
+    suggested_action: string;
+    sample_questions: string[];
+}
+
+export interface WorkflowDefinition {
+    id: string;
+    agent_id: string;
+    tenant_id?: string;
+    created_by: string;
+    name: string;
+    description?: string;
+    status: 'draft' | 'active' | 'archived';
+    version: number;
+    definition: {
+        nodes: Array<{
+            key: string;
+            type: string;
+            title: string;
+            x: number;
+            y: number;
+            config?: Record<string, any>;
+        }>;
+        edges: Array<{
+            id: string;
+            source: string;
+            target: string;
+            label?: string;
+        }>;
+    };
+    canvas_layout: Record<string, any>;
+    input_schema: Record<string, any>;
+    output_schema: Record<string, any>;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface WorkflowRun {
+    id: string;
+    workflow_id: string;
+    agent_id: string;
+    started_by: string;
+    trigger_type: string;
+    status: 'pending' | 'running' | 'waiting_human' | 'completed' | 'failed' | 'cancelled' | 'rejected';
+    input_payload: Record<string, any>;
+    context_snapshot: Record<string, any>;
+    output_payload: Record<string, any>;
+    current_node_key?: string | null;
+    error_message?: string | null;
+    started_at?: string | null;
+    finished_at?: string | null;
+    created_at: string;
+    updated_at: string;
+    node_runs?: Array<{
+        id: string;
+        node_key: string;
+        node_type: string;
+        title: string;
+        status: string;
+        attempt: number;
+        input_payload: Record<string, any>;
+        output_payload: Record<string, any>;
+        error_message?: string | null;
+        started_at?: string | null;
+        finished_at?: string | null;
+    }>;
+}
+
 export interface TokenResponse {
     access_token: string;
     token_type: string;

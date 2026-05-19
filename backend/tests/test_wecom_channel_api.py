@@ -1,12 +1,11 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
 
 from app.api import wecom as wecom_api
 from app.models.channel_config import ChannelConfig
-from app.models.user import User
 
 
 class DummyResult:
@@ -50,7 +49,7 @@ def make_user(**overrides):
         "is_active": True,
     }
     values.update(overrides)
-    return User(**values)
+    return SimpleNamespace(**values)
 
 
 def make_channel(agent_id: uuid.UUID, *, connection_mode: str = "websocket") -> ChannelConfig:
@@ -63,7 +62,7 @@ def make_channel(agent_id: uuid.UUID, *, connection_mode: str = "websocket") -> 
         is_configured=True,
         is_connected=False,
         extra_config={"connection_mode": connection_mode, "bot_id": "bot_123", "bot_secret": "secret_123"},
-        created_at=datetime.now(UTC),
+        created_at=datetime.now(timezone.utc),
     )
 
 
@@ -81,7 +80,7 @@ async def test_get_wecom_channel_reports_runtime_websocket_status(monkeypatch):
             return {str(agent_id): True}
 
     monkeypatch.setattr(wecom_api, "check_agent_access", fake_check_agent_access)
-    monkeypatch.setattr("app.services.wecom_stream.wecom_stream_manager", FakeManager())
+    monkeypatch.setattr(wecom_api, "wecom_stream_manager", FakeManager())
 
     result = await wecom_api.get_wecom_channel(
         agent_id=agent_id,

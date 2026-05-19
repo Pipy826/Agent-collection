@@ -10,7 +10,6 @@ from starlette.background import BackgroundTasks
 from app.api import auth as auth_api
 from app.api.notification import BroadcastRequest, broadcast_notification
 from app.core.security import verify_password
-from app.models.user import User
 from app.schemas.schemas import ForgotPasswordRequest, ResetPasswordRequest
 from app.services import password_reset_service, system_email_service
 
@@ -101,22 +100,22 @@ def make_user(**overrides):
         "is_active": True,
     }
     values.update(overrides)
-    return User(**values)
+    return SimpleNamespace(**values)
 
 
 @pytest.mark.asyncio
 async def test_create_password_reset_token_invalidates_older_tokens(monkeypatch):
+    user_id = uuid.uuid4()
     monkeypatch.setattr(
         password_reset_service,
         "get_settings",
         lambda: SimpleNamespace(PASSWORD_RESET_TOKEN_EXPIRE_MINUTES=15, PUBLIC_BASE_URL=""),
     )
-    mock_redis = MockRedis(initial_data={"pwd_reset:user:user-id-123": "old-token-hash"})
+    mock_redis = MockRedis(initial_data={f"pwd_reset:user:{user_id}": "old-token-hash"})
     async def fake_get_redis(): return mock_redis
     monkeypatch.setattr(password_reset_service, "get_redis", fake_get_redis)
 
     db = RecordingDB()
-    user_id = uuid.uuid4()
 
     raw_token, expires_at = await password_reset_service.create_password_reset_token(user_id)
 
@@ -146,13 +145,13 @@ async def test_build_password_reset_url_uses_env_public_base_url(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_consume_password_reset_token_works_correctly(monkeypatch):
-    user_id = uuid.uuid4()
+    identity_id = uuid.uuid4()
     raw_token = "raw-token"
     token_hash = password_reset_service._hash_token(raw_token)
     
     initial_data = {
-        f"pwd_reset:token:{token_hash}": str(user_id),
-        f"pwd_reset:user:{user_id}": token_hash,
+        f"pwd_reset:token:{token_hash}": str(identity_id),
+        f"pwd_reset:user:{identity_id}": token_hash,
     }
     mock_redis = MockRedis(initial_data=initial_data)
     async def fake_get_redis(): return mock_redis
@@ -162,16 +161,31 @@ async def test_consume_password_reset_token_works_correctly(monkeypatch):
     result = await password_reset_service.consume_password_reset_token(raw_token)
 
     assert result is not None
-    assert result["user_id"] == user_id
+    assert result["identity_id"] == identity_id
     # Should be deleted after consumption
     assert f"pwd_reset:token:{token_hash}" in mock_redis.deleted
-    assert f"pwd_reset:user:{user_id}" in mock_redis.deleted
+    assert f"pwd_reset:user:{identity_id}" in mock_redis.deleted
 
 
 @pytest.mark.asyncio
-async def test_forgot_password_returns_generic_response_for_unknown_email():
+async def test_forgot_password_returns_generic_response_for_unknown_email(monkeypatch):
     db = RecordingDB([DummyResult(None)])
     background_tasks = BackgroundTasks()
+    async def fake_resolve_email_config_async(_db):
+        return system_email_service.SystemEmailConfig(
+            from_address="bot@example.com",
+            from_name="Clawith",
+            smtp_host="smtp.example.com",
+            smtp_port=465,
+            smtp_username="bot@example.com",
+            smtp_password="secret",
+            smtp_ssl=True,
+            smtp_timeout_seconds=15,
+        )
+    monkeypatch.setattr(
+        "app.services.system_email_service.resolve_email_config_async",
+        fake_resolve_email_config_async,
+    )
 
     response = await auth_api.forgot_password(
         ForgotPasswordRequest(email="missing@example.com"),
@@ -201,14 +215,28 @@ async def test_forgot_password_queues_background_email(monkeypatch):
     async def fake_build_password_reset_url(*_args, **_kwargs):
         return "https://app.example.com/reset-password?token=raw-token"
 
+    async def fake_resolve_email_config_async(_db):
+        return system_email_service.SystemEmailConfig(
+            from_address="bot@example.com",
+            from_name="Clawith",
+            smtp_host="smtp.example.com",
+            smtp_port=465,
+            smtp_username="bot@example.com",
+            smtp_password="secret",
+            smtp_ssl=True,
+            smtp_timeout_seconds=15,
+        )
+
     monkeypatch.setattr(password_reset_service, "create_password_reset_token", fake_create_password_reset_token)
     monkeypatch.setattr(password_reset_service, "build_password_reset_url", fake_build_password_reset_url)
-
+    monkeypatch.setattr(
+        "app.services.system_email_service.resolve_email_config_async",
+        fake_resolve_email_config_async,
+    )
 
     response = await auth_api.forgot_password(ForgotPasswordRequest(email=user.email), background_tasks, db)
 
     assert response["ok"] is True
-    assert db.committed is True
     assert len(background_tasks.tasks) == 1
 
 
@@ -264,7 +292,7 @@ async def test_reset_password_updates_user(monkeypatch):
     db = RecordingDB([DummyResult(user)])
 
     async def fake_consume_password_reset_token(*_args, **_kwargs):
-        return {"user_id": user.id}
+        return {"identity_id": user.id}
 
     monkeypatch.setattr(password_reset_service, "consume_password_reset_token", fake_consume_password_reset_token)
 

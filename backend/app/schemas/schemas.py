@@ -384,6 +384,71 @@ class TaskLogOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class WorkflowDefinitionCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    status: str = "draft"
+    definition: dict
+    canvas_layout: dict = {}
+    input_schema: dict = {}
+    output_schema: dict = {}
+
+
+class WorkflowDefinitionUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    status: str | None = None
+    definition: dict | None = None
+    canvas_layout: dict | None = None
+    input_schema: dict | None = None
+    output_schema: dict | None = None
+
+
+class WorkflowDefinitionOut(BaseModel):
+    id: uuid.UUID
+    agent_id: uuid.UUID
+    tenant_id: uuid.UUID | None = None
+    created_by: uuid.UUID
+    name: str
+    description: str | None = None
+    status: str
+    version: int
+    definition: dict
+    canvas_layout: dict
+    input_schema: dict
+    output_schema: dict
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowRunCreate(BaseModel):
+    trigger_type: str = "manual"
+    input_payload: dict = {}
+
+
+class WorkflowRunOut(BaseModel):
+    id: uuid.UUID
+    workflow_id: uuid.UUID
+    agent_id: uuid.UUID
+    started_by: uuid.UUID
+    trigger_type: str
+    status: str
+    input_payload: dict
+    context_snapshot: dict
+    output_payload: dict
+    current_node_key: str | None = None
+    error_message: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    node_runs: list[dict] = []
+
+    model_config = {"from_attributes": True}
+
+
 # ─── LLM ────────────────────────────────────────────────
 
 class LLMModelCreate(BaseModel):
@@ -516,6 +581,125 @@ class ChatMessageOut(BaseModel):
 
 class ChatSend(BaseModel):
     content: str = Field(min_length=1)
+
+
+class MemoryDocumentCreate(BaseModel):
+    scope: str = "agent"
+    memory_type: str = "fact"
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1)
+    source_type: str = "manual"
+    source_ref_id: str | None = None
+    user_id: uuid.UUID | None = None
+    importance_score: int = Field(default=50, ge=0, le=100)
+    visibility: str = "private"
+    is_verified: bool = False
+    metadata_json: dict = {}
+
+
+class MemoryDocumentOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID | None = None
+    agent_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
+    created_by: uuid.UUID | None = None
+    scope: str
+    memory_type: str
+    title: str
+    content: str
+    source_type: str
+    source_ref_id: str | None = None
+    metadata_json: dict = {}
+    importance_score: int
+    visibility: str
+    is_verified: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MemorySearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class MemorySearchItem(BaseModel):
+    source: str
+    score: float
+    title: str
+    content: str
+    memory_id: uuid.UUID | None = None
+    golden_example_id: uuid.UUID | None = None
+    metadata: dict = {}
+
+
+class MemorySearchResponse(BaseModel):
+    items: list[MemorySearchItem]
+    total: int
+
+
+class MemoryRebuildOut(BaseModel):
+    scanned_messages: int
+    created_memories: int
+    status: str
+
+
+class AnswerFeedbackCreate(BaseModel):
+    feedback_type: str = Field(pattern="^(upvote|downvote)$")
+    comment: str | None = None
+    corrected_answer: str | None = None
+
+
+class AnswerFeedbackOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID | None = None
+    message_id: uuid.UUID
+    agent_id: uuid.UUID
+    user_id: uuid.UUID
+    feedback_type: str
+    comment: str | None = None
+    corrected_answer: str | None = None
+    question_snapshot: str | None = None
+    normalized_question: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class GoldenExampleOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID | None = None
+    agent_id: uuid.UUID | None = None
+    source_feedback_id: uuid.UUID | None = None
+    question: str
+    normalized_question: str
+    correct_answer: str
+    status: str
+    tags: list = []
+    review_note: str | None = None
+    reviewed_by: uuid.UUID | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class GoldenExampleReview(BaseModel):
+    status: str = Field(pattern="^(pending_review|approved|rejected|active)$")
+    review_note: str | None = None
+
+
+class KnowledgeGapOut(BaseModel):
+    question_cluster: str
+    frequency: int
+    affected_agent_ids: list[str] = []
+    active_example_count: int = 0
+    pending_feedback_count: int = 0
+    suggested_action: str
+    sample_questions: list[str] = []
 
 
 # ─── Audit Log ──────────────────────────────────────────

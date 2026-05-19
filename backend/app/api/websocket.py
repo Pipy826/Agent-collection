@@ -19,6 +19,7 @@ from app.models.chat_session import ChatSession
 from app.models.llm import LLMModel
 from app.models.user import User
 from app.services.chat_session_service import ensure_primary_platform_session
+from app.services.memory_context import build_memory_context
 from app.services.llm import call_llm, call_llm_with_failover
 
 router = APIRouter(tags=["websocket"])
@@ -381,6 +382,7 @@ async def websocket_chat(
         while True:
             logger.info(f"[WS] Waiting for message from {agent_name}...")
             data = await websocket.receive_json()
+            queued_messages: list[dict] = []
 
             # Set a unique trace ID for this specific message processing.
             from app.core.logging_config import set_trace_id
@@ -788,6 +790,7 @@ async def websocket_chat(
                         # starts streaming.
                         from app.services.onboarding import resolve_onboarding_prompt
                         skip_tools_for_greeting = False
+                        extra_dynamic_context = ""
                         try:
                             async with async_session() as _ob_db:
                                 _onb = await resolve_onboarding_prompt(
@@ -808,6 +811,19 @@ async def websocket_chat(
                         except Exception as _onb_err:
                             logger.warning(f"[WS] Onboarding prompt resolve failed (non-fatal): {_onb_err}")
 
+                        if not is_onboarding_trigger:
+                            try:
+                                async with async_session() as _mem_db:
+                                    extra_dynamic_context = await build_memory_context(
+                                        _mem_db,
+                                        tenant_id=getattr(agent_snapshot, "tenant_id", None),
+                                        agent_id=agent_id,
+                                        user_id=user_id,
+                                        query=content,
+                                    )
+                            except Exception as _mem_err:
+                                logger.warning(f"[WS] Memory retrieval failed (non-fatal): {_mem_err}")
+
                         return await call_llm_with_failover(
                             primary_model=effective_llm_model,
                             fallback_model=fallback_llm_model,
@@ -824,13 +840,13 @@ async def websocket_chat(
                             supports_vision=getattr(effective_llm_model, 'supports_vision', False),
                             on_failover=_on_failover,
                             skip_tools=skip_tools_for_greeting,
+                            extra_dynamic_context=extra_dynamic_context,
                         )
 
                     llm_task = _aio.create_task(_call_with_failover())
 
                     # Listen for abort while LLM is running
                     aborted = False
-                    queued_messages: list[dict] = []
                     while not llm_task.done():
                         try:
                             msg = await _aio.wait_for(

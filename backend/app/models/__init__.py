@@ -11,6 +11,7 @@ from app.models import gateway_message  # noqa: F401
 from app.models import identity  # noqa: F401
 from app.models import invitation_code  # noqa: F401
 from app.models import llm  # noqa: F401
+from app.models import memory  # noqa: F401
 from app.models import notification  # noqa: F401
 from app.models import okr  # noqa: F401
 from app.models import org  # noqa: F401
@@ -27,3 +28,4 @@ from app.models import tool  # noqa: F401
 from app.models import trigger  # noqa: F401
 from app.models import user  # noqa: F401
 from app.models import workspace  # noqa: F401
+from app.models import workflow  # noqa: F401

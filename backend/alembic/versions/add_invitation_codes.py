@@ -1,7 +1,4 @@
-"""Add invitation_codes table.
-
-This is an idempotent migration — uses CREATE TABLE IF NOT EXISTS.
-"""
+"""Add invitation_codes table."""
 
 from alembic import op
 import sqlalchemy as sa
@@ -13,20 +10,24 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("""
-    CREATE TABLE IF NOT EXISTS invitation_codes (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        code VARCHAR(32) NOT NULL UNIQUE,
-        max_uses INTEGER NOT NULL DEFAULT 1,
-        used_count INTEGER NOT NULL DEFAULT 0,
-        is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        created_by UUID REFERENCES users(id),
-        created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-    """)
-    op.execute("""
-    CREATE INDEX IF NOT EXISTS idx_invitation_codes_code ON invitation_codes(code)
-    """)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if "invitation_codes" not in inspector.get_table_names():
+        op.create_table(
+            "invitation_codes",
+            sa.Column("id", sa.String(length=36), primary_key=True),
+            sa.Column("code", sa.String(length=32), nullable=False, unique=True),
+            sa.Column("max_uses", sa.Integer(), nullable=False, server_default="1"),
+            sa.Column("used_count", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+            sa.Column("created_by", sa.String(length=36), nullable=True),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
+        )
+
+    existing_indexes = {idx["name"] for idx in inspector.get_indexes("invitation_codes")}
+    if "idx_invitation_codes_code" not in existing_indexes:
+        op.create_index("idx_invitation_codes_code", "invitation_codes", ["code"], unique=False)
 
 
 def downgrade() -> None:

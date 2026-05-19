@@ -1,38 +1,40 @@
-"""add published_pages table
+"""Add published_pages table."""
 
-Revision ID: add_published_pages
-Revises: df3da9cf3b27
-Create Date: 2026-03-20
-"""
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 
 
-revision: str = 'add_published_pages'
-down_revision: Union[str, None] = 'df3da9cf3b27'
+revision: str = "add_published_pages"
+down_revision: Union[str, None] = "df3da9cf3b27"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("""
-        CREATE TABLE IF NOT EXISTS published_pages (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            short_id VARCHAR(16) NOT NULL UNIQUE,
-            agent_id UUID NOT NULL REFERENCES agents(id),
-            user_id UUID NOT NULL REFERENCES users(id),
-            tenant_id UUID REFERENCES tenants(id),
-            source_path VARCHAR(500) NOT NULL,
-            title VARCHAR(200) DEFAULT '',
-            view_count INTEGER DEFAULT 0,
-            created_at TIMESTAMPTZ DEFAULT now()
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if "published_pages" not in inspector.get_table_names():
+        op.create_table(
+            "published_pages",
+            sa.Column("id", sa.String(length=36), primary_key=True),
+            sa.Column("short_id", sa.String(length=16), nullable=False, unique=True),
+            sa.Column("agent_id", sa.String(length=36), nullable=False),
+            sa.Column("user_id", sa.String(length=36), nullable=False),
+            sa.Column("tenant_id", sa.String(length=36), nullable=True),
+            sa.Column("source_path", sa.String(length=500), nullable=False),
+            sa.Column("title", sa.String(length=200), nullable=True, server_default=""),
+            sa.Column("view_count", sa.Integer(), nullable=True, server_default="0"),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
         )
-    """)
-    op.execute("CREATE INDEX IF NOT EXISTS ix_published_pages_short_id ON published_pages(short_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_published_pages_agent_id ON published_pages(agent_id)")
+
+    existing_indexes = {idx["name"] for idx in inspector.get_indexes("published_pages")}
+    if "ix_published_pages_short_id" not in existing_indexes:
+        op.create_index("ix_published_pages_short_id", "published_pages", ["short_id"], unique=False)
+    if "ix_published_pages_agent_id" not in existing_indexes:
+        op.create_index("ix_published_pages_agent_id", "published_pages", ["agent_id"], unique=False)
 
 
 def downgrade() -> None:

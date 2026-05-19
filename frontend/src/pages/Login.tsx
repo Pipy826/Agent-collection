@@ -41,7 +41,7 @@ export default function Login() {
     });
 
     useEffect(() => {
-        document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.setAttribute('data-theme', 'light');
 
         // If arriving via invitation link with email, check whether the email is already registered
         // to decide whether to show login or register form.

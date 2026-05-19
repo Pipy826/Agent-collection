@@ -139,6 +139,9 @@ class Agent(Base):
     )
     permissions: Mapped[list["AgentPermission"]] = relationship(back_populates="agent", cascade="all, delete-orphan")
     tasks: Mapped[list["Task"]] = relationship(back_populates="agent", cascade="all, delete-orphan")
+    workflows: Mapped[list["WorkflowDefinition"]] = relationship(
+        "WorkflowDefinition", cascade="all, delete-orphan"
+    )
     channel_config: Mapped["ChannelConfig | None"] = relationship(back_populates="agent", uselist=False)
     primary_model: Mapped["LLMModel | None"] = relationship(foreign_keys=[primary_model_id])
     fallback_model: Mapped["LLMModel | None"] = relationship(foreign_keys=[fallback_model_id])
@@ -224,3 +227,4 @@ from app.models.channel_config import ChannelConfig  # noqa: E402, F401
 from app.models.user import User  # noqa: E402, F401
 from app.models.llm import LLMModel  # noqa: E402, F401
 from app.models.agent_node import AgentNode  # noqa: E402, F401
+from app.models.workflow import WorkflowDefinition  # noqa: E402, F401

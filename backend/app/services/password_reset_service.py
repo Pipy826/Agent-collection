@@ -46,8 +46,8 @@ async def create_password_reset_token(identity_id: uuid.UUID) -> tuple[str, date
     ttl_seconds = int(expiry_minutes * 60)
     
     async with redis.pipeline(transaction=True) as pipe:
-        pipe.setex(token_key, ttl_seconds, str(identity_id))
-        pipe.setex(user_key, ttl_seconds, token_hash)
+        await pipe.setex(token_key, ttl_seconds, str(identity_id))
+        await pipe.setex(user_key, ttl_seconds, token_hash)
         await pipe.execute()
         
     return raw_token, expires_at
@@ -55,6 +55,9 @@ async def create_password_reset_token(identity_id: uuid.UUID) -> tuple[str, date
 
 async def get_public_base_url(db: AsyncSession) -> str:
     """Resolve the public base URL used for user-facing links."""
+    public_base_url = (get_settings().PUBLIC_BASE_URL or "").strip().rstrip("/")
+    if public_base_url:
+        return public_base_url
     from app.services.platform_service import platform_service
     return await platform_service.get_public_base_url(db)
 
@@ -80,8 +83,8 @@ async def consume_password_reset_token(raw_token: str) -> dict | None:
     
     # Atomic delete to ensure single-use
     async with redis.pipeline(transaction=True) as pipe:
-        pipe.delete(token_key)
-        pipe.delete(user_key)
+        await pipe.delete(token_key)
+        await pipe.delete(user_key)
         await pipe.execute()
     
     return {"identity_id": identity_id}

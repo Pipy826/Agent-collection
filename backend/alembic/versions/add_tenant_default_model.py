@@ -1,34 +1,55 @@
-"""Add Tenant.default_model_id + backfill per-tenant to earliest enabled model.
+"""Add Tenant.default_model_id + backfill per-tenant to earliest enabled model."""
 
-Revision ID: add_tenant_default_model
-Revises: add_agent_bootstrap_fields
-Create Date: 2026-04-23
-
-Each tenant gets a default_model_id pointing at its first enabled LLM model
-(by created_at ascending). Tenants with no enabled models stay NULL; the admin
-picks one when they finally add a model (handled at the API layer).
-"""
 from typing import Sequence, Union
 
 from alembic import op
+import sqlalchemy as sa
 
 
-revision: str = 'add_tenant_default_model'
-down_revision: Union[str, None] = 'add_agent_bootstrap_fields'
+revision: str = "add_tenant_default_model"
+down_revision: Union[str, None] = "add_agent_bootstrap_fields"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add the nullable FK column. ON DELETE SET NULL — if a model is deleted,
-    # tenants that pointed at it revert to "no default."
-    op.execute("""
-        ALTER TABLE tenants
-        ADD COLUMN IF NOT EXISTS default_model_id UUID
-        REFERENCES llm_models(id) ON DELETE SET NULL
-    """)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    tenant_columns = {col["name"] for col in inspector.get_columns("tenants")}
 
-    # Backfill: for each tenant, pick its earliest-created enabled model.
+    if "default_model_id" not in tenant_columns:
+        op.add_column("tenants", sa.Column("default_model_id", sa.String(length=36), nullable=True))
+
+    if bind.dialect.name == "sqlite":
+        rows = bind.execute(sa.text("""
+            SELECT tenant_id, id
+            FROM llm_models lm
+            WHERE enabled = 1
+              AND tenant_id IS NOT NULL
+              AND created_at = (
+                  SELECT MIN(lm2.created_at)
+                  FROM llm_models lm2
+                  WHERE lm2.tenant_id = lm.tenant_id
+                    AND lm2.enabled = 1
+              )
+            ORDER BY tenant_id, created_at ASC
+        """)).fetchall()
+        seen = set()
+        for tenant_id, model_id in rows:
+            tenant_key = str(tenant_id)
+            if tenant_key in seen:
+                continue
+            seen.add(tenant_key)
+            bind.execute(
+                sa.text("""
+                    UPDATE tenants
+                    SET default_model_id = :model_id
+                    WHERE id = :tenant_id AND default_model_id IS NULL
+                """),
+                {"tenant_id": tenant_key, "model_id": str(model_id)},
+            )
+        return
+
     op.execute("""
         UPDATE tenants t
         SET default_model_id = m.id

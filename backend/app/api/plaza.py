@@ -1,5 +1,6 @@
 """Plaza (Agent Square) REST API."""
 
+import asyncio
 import re
 import uuid
 from datetime import datetime, timezone
@@ -87,14 +88,22 @@ class PostDetail(PostOut):
 
 # ── Helpers ─────────────────────────────────────────
 
+def _content_mentions_name(content: str, name: str) -> bool:
+    if not name:
+        return False
+    escaped_name = re.escape(name)
+    trailing_chars = r'[\s)\]}",.!?:;，。！？、；："\'\']'
+    pattern = rf'(?<![A-Za-z0-9_])@{escaped_name}(?=$|{trailing_chars})'
+    return re.search(pattern, content, flags=re.IGNORECASE) is not None
+
+
 async def _notify_mentions(db, content: str, author_id: uuid.UUID, author_name: str,
                            post_id: uuid.UUID, tenant_id: uuid.UUID | None):
     """Parse @mentions in content and send notifications to mentioned agents/users."""
     from app.models.agent import Agent
     from app.services.notification_service import send_notification
 
-    mentions = re.findall(r'@(\S+)', content)
-    if not mentions:
+    if '@' not in content:
         return
 
     # Find matching agents in the same tenant
@@ -102,48 +111,72 @@ async def _notify_mentions(db, content: str, author_id: uuid.UUID, author_name: 
     if tenant_id:
         agent_q = agent_q.where(Agent.tenant_id == tenant_id)
     agents_result = await db.execute(agent_q)
-    agent_map = {a.name.lower(): a for a in agents_result.scalars().all()}
+    agents = [a for a in agents_result.scalars().all() if a.name]
 
     # Find matching users in the same tenant
     user_q = select(User).where(User.id != author_id)
     if tenant_id:
         user_q = user_q.where(User.tenant_id == tenant_id)
     users_result = await db.execute(user_q)
-    user_map = {}
+    users = []
     for u in users_result.scalars().all():
-        name = (u.display_name or u.username or "").lower()
+        name = (u.display_name or u.username or "").strip()
         if name:
-            user_map[name] = u
+            users.append((name, u))
 
     notified_ids = set()
-    for m in mentions:
-        m_lower = m.lower()
-        # Try agent match
-        agent = agent_map.get(m_lower)
-        if agent and agent.id not in notified_ids:
-            notified_ids.add(agent.id)
-            await send_notification(
-                db, agent_id=agent.id,
-                type="mention",
-                title=f"{author_name} mentioned you in a post",
-                body=content[:150],
-                link=f"/plaza?post={post_id}",
-                ref_id=post_id,
-                sender_name=author_name,
-            )
-        # Try user match
-        user = user_map.get(m_lower)
-        if user and user.id not in notified_ids:
-            notified_ids.add(user.id)
-            await send_notification(
-                db, user_id=user.id,
-                type="mention",
-                title=f"{author_name} mentioned you in a post",
-                body=content[:150],
-                link=f"/plaza?post={post_id}",
-                ref_id=post_id,
-                sender_name=author_name,
-            )
+    for agent in agents:
+        if agent.id in notified_ids or not _content_mentions_name(content, agent.name):
+            continue
+        notified_ids.add(agent.id)
+        await send_notification(
+            db, agent_id=agent.id,
+            type="mention",
+            title=f"{author_name} mentioned you in a post",
+            body=content[:150],
+            link=f"/plaza?post={post_id}",
+            ref_id=post_id,
+            sender_name=author_name,
+        )
+        _wake_agent_for_plaza_event(
+            agent.id,
+            (
+                f"You were mentioned by {author_name} in Agent Plaza post {post_id}.\n\n"
+                "Please inspect that plaza post and decide whether a helpful reply is appropriate. "
+                "If so, reply with exactly one plaza_add_comment on that same post. "
+                "Do not create a new plaza post. If no reply is needed, stop."
+            ),
+            reason="plaza mention",
+        )
+
+    for name, user in users:
+        if user.id in notified_ids or not _content_mentions_name(content, name):
+            continue
+        notified_ids.add(user.id)
+        await send_notification(
+            db, user_id=user.id,
+            type="mention",
+            title=f"{author_name} mentioned you in a post",
+            body=content[:150],
+            link=f"/plaza?post={post_id}",
+            ref_id=post_id,
+            sender_name=author_name,
+        )
+
+
+def _wake_agent_for_plaza_event(agent_id: uuid.UUID, prompt: str, *, reason: str) -> None:
+    """Kick off an immediate one-shot run for plaza mentions/replies."""
+    from app.services.heartbeat import run_agent_oneshot
+
+    logger.info(f"[Plaza] Waking agent {agent_id} for {reason}")
+    asyncio.create_task(
+        run_agent_oneshot(
+            agent_id=agent_id,
+            prompt=prompt,
+            triggered_by_user_id=None,
+            max_rounds=12,
+        )
+    )
 
 
 # ── Routes ──────────────────────────────────────────
@@ -383,6 +416,16 @@ async def create_comment(post_id: uuid.UUID, body: CommentCreate, current_user: 
                         ref_id=post_id,
                         sender_name=body.author_name,
                     )
+                    _wake_agent_for_plaza_event(
+                        post.author_id,
+                        (
+                            f"{body.author_name} commented on your Agent Plaza post {post_id}.\n\n"
+                            f"Comment content:\n{body.content[:300]}\n\n"
+                            "Please inspect the post context and, if appropriate, reply with exactly one "
+                            "plaza_add_comment on that same post. Do not create a new plaza post."
+                        ),
+                        reason="comment on agent post",
+                    )
                     # Also notify human creator
                     agent_result = await db.execute(select(Agent).where(Agent.id == post.author_id))
                     post_agent = agent_result.scalar_one_or_none()
@@ -413,7 +456,6 @@ async def create_comment(post_id: uuid.UUID, body: CommentCreate, current_user: 
 
         # Notify other agents who have commented on this post
         try:
-            from app.models.agent import Agent
             from app.services.notification_service import send_notification
             other_comments = await db.execute(
                 select(PlazaComment.author_id, PlazaComment.author_type)
@@ -436,6 +478,18 @@ async def create_comment(post_id: uuid.UUID, body: CommentCreate, current_user: 
                         link=f"/plaza?post={post_id}",
                         ref_id=post_id,
                         sender_name=body.author_name,
+                    )
+                    _wake_agent_for_plaza_event(
+                        cid,
+                        (
+                            f"{body.author_name} added a new comment on Agent Plaza post {post_id}, "
+                            "which you previously commented on.\n\n"
+                            f"Latest comment:\n{body.content[:300]}\n\n"
+                            "Please inspect the full thread context and, if a helpful response is appropriate, "
+                            "reply with exactly one plaza_add_comment on that same post. "
+                            "Do not create a new plaza post."
+                        ),
+                        reason="comment on participated post",
                     )
         except Exception:
             pass

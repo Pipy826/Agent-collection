@@ -18,6 +18,84 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+
+    if connection.dialect.name == "sqlite":
+        if "identity_providers" not in inspector.get_table_names():
+            op.create_table(
+                "identity_providers",
+                sa.Column("id", sa.String(length=36), primary_key=True),
+                sa.Column("provider_type", sa.String(length=50), nullable=False),
+                sa.Column("name", sa.String(length=100), nullable=False),
+                sa.Column("is_active", sa.Boolean(), nullable=True, server_default=sa.true()),
+                sa.Column("config", sa.JSON(), nullable=True),
+                sa.Column("tenant_id", sa.String(length=36), nullable=True),
+                sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
+                sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+            )
+
+        if "sso_scan_sessions" not in inspector.get_table_names():
+            op.create_table(
+                "sso_scan_sessions",
+                sa.Column("id", sa.String(length=36), primary_key=True),
+                sa.Column("status", sa.String(length=50), nullable=True, server_default="pending"),
+                sa.Column("provider_type", sa.String(length=50), nullable=True),
+                sa.Column("error_msg", sa.Text(), nullable=True),
+                sa.Column("tenant_id", sa.String(length=36), nullable=True),
+                sa.Column("user_id", sa.String(length=36), nullable=True),
+                sa.Column("access_token", sa.Text(), nullable=True),
+                sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+                sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
+            )
+
+        def add_column_if_missing(table_name: str, column: sa.Column) -> None:
+            existing = {col["name"] for col in inspector.get_columns(table_name)}
+            if column.name not in existing:
+                op.add_column(table_name, column)
+
+        def create_index_if_missing(table_name: str, index_name: str, columns: list[str], *, unique: bool = False) -> None:
+            existing_indexes = {idx["name"] for idx in inspector.get_indexes(table_name)}
+            if index_name not in existing_indexes:
+                op.create_index(index_name, table_name, columns, unique=unique)
+
+        add_column_if_missing("tenants", sa.Column("sso_enabled", sa.Boolean(), nullable=True, server_default=sa.false()))
+        add_column_if_missing("tenants", sa.Column("sso_domain", sa.String(length=255), nullable=True))
+        create_index_if_missing("tenants", "ux_tenants_sso_domain", ["sso_domain"], unique=True)
+
+        add_column_if_missing("org_departments", sa.Column("external_id", sa.String(length=100), nullable=True))
+        add_column_if_missing("org_departments", sa.Column("provider_id", sa.String(length=36), nullable=True))
+        create_index_if_missing("org_departments", "ix_org_departments_external_id", ["external_id"])
+
+        org_member_columns = {col["name"] for col in inspector.get_columns("org_members")}
+        if "open_id" not in org_member_columns and "feishu_open_id" in org_member_columns:
+            op.alter_column("org_members", "feishu_open_id", new_column_name="open_id")
+        add_column_if_missing("org_members", sa.Column("open_id", sa.String(length=100), nullable=True))
+        if "external_id" not in org_member_columns and "feishu_user_id" in org_member_columns:
+            op.alter_column("org_members", "feishu_user_id", new_column_name="external_id")
+        add_column_if_missing("org_members", sa.Column("external_id", sa.String(length=100), nullable=True))
+        add_column_if_missing("org_members", sa.Column("unionid", sa.String(length=100), nullable=True))
+        add_column_if_missing("org_members", sa.Column("provider_id", sa.String(length=36), nullable=True))
+        add_column_if_missing("org_members", sa.Column("user_id", sa.String(length=36), nullable=True))
+        create_index_if_missing("org_members", "ix_org_members_open_id", ["open_id"])
+        create_index_if_missing("org_members", "ix_org_members_external_id", ["external_id"])
+        create_index_if_missing("org_members", "ix_org_members_unionid", ["unionid"])
+        create_index_if_missing("org_members", "ix_org_members_user_id", ["user_id"])
+
+        add_column_if_missing("users", sa.Column("primary_mobile", sa.String(length=50), nullable=True))
+        add_column_if_missing("users", sa.Column("registration_source", sa.String(length=50), nullable=True, server_default="web"))
+        add_column_if_missing("users", sa.Column("external_id", sa.String(length=255), nullable=True))
+        create_index_if_missing("users", "ix_users_primary_mobile", ["primary_mobile"])
+        create_index_if_missing("users", "ix_users_external_id", ["external_id"])
+
+        user_columns = {col["name"] for col in inspector.get_columns("users")}
+        if "department_id" in user_columns:
+            # SQLite cannot safely drop columns in-place here; leaving the legacy column is acceptable.
+            pass
+
+        add_column_if_missing("org_departments", sa.Column("status", sa.String(length=20), nullable=True, server_default="active"))
+        return
+
     # ============================================
     # 1. Create identity_providers table (no foreign key to allow soft coupling)
     # ============================================
@@ -211,7 +289,6 @@ def upgrade() -> None:
     """)
 
     # Step 1: Get distinct tenant_ids from org_departments that haven't been migrated
-    connection = op.get_bind()
     result = connection.execute(sa.text("""
         SELECT DISTINCT od.tenant_id
         FROM org_departments od

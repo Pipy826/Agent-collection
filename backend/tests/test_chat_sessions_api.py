@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -56,7 +56,7 @@ async def test_org_admin_can_list_all_sessions(monkeypatch):
     viewer_id = uuid.uuid4()
     agent_id = uuid.uuid4()
     owner_id = uuid.uuid4()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
 
     current_user = SimpleNamespace(id=viewer_id, role="org_admin")
     agent = SimpleNamespace(id=agent_id, creator_id=uuid.uuid4())
@@ -70,6 +70,7 @@ async def test_org_admin_can_list_all_sessions(monkeypatch):
         last_message_at=now,
         peer_agent_id=None,
         is_group=False,
+        is_primary=False,
         group_name=None,
     )
     db = RecordingDB(
@@ -77,6 +78,7 @@ async def test_org_admin_can_list_all_sessions(monkeypatch):
             DummyResult([agent]),
             DummyResult([session]),
             DummyResult([(str(session.id), 3)]),
+            DummyResult([]),
             DummyResult([(owner_id, "Alice")]),
         ]
     )
@@ -104,7 +106,7 @@ async def test_creator_can_list_all_sessions(monkeypatch):
     creator_id = uuid.uuid4()
     agent_id = uuid.uuid4()
     other_user_id = uuid.uuid4()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
 
     current_user = SimpleNamespace(id=creator_id, role="member")
     agent = SimpleNamespace(id=agent_id, creator_id=creator_id)
@@ -118,6 +120,7 @@ async def test_creator_can_list_all_sessions(monkeypatch):
         last_message_at=now,
         peer_agent_id=None,
         is_group=False,
+        is_primary=False,
         group_name=None,
     )
     db = RecordingDB(
@@ -125,6 +128,7 @@ async def test_creator_can_list_all_sessions(monkeypatch):
             DummyResult([agent]),
             DummyResult([session]),
             DummyResult([(str(session.id), 2)]),
+            DummyResult([]),
             DummyResult([(other_user_id, "Bob")]),
         ]
     )
@@ -152,7 +156,7 @@ async def test_org_admin_can_view_other_users_session_messages(monkeypatch):
     agent_id = uuid.uuid4()
     owner_id = uuid.uuid4()
     session_id = uuid.uuid4()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
 
     current_user = SimpleNamespace(id=viewer_id, role="org_admin")
     session = SimpleNamespace(
@@ -163,6 +167,7 @@ async def test_org_admin_can_view_other_users_session_messages(monkeypatch):
         source_channel="web",
     )
     message = SimpleNamespace(
+        id=uuid.uuid4(),
         role="user",
         content="hello",
         created_at=now,
@@ -189,6 +194,7 @@ async def test_org_admin_can_view_other_users_session_messages(monkeypatch):
 
     assert messages == [
         {
+            "id": str(message.id),
             "role": "user",
             "content": "hello",
             "created_at": now.isoformat(),
@@ -202,7 +208,7 @@ async def test_creator_can_view_other_users_session_messages(monkeypatch):
     agent_id = uuid.uuid4()
     other_user_id = uuid.uuid4()
     session_id = uuid.uuid4()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
 
     current_user = SimpleNamespace(id=creator_id, role="member")
     agent = SimpleNamespace(id=agent_id, creator_id=creator_id)
@@ -214,6 +220,7 @@ async def test_creator_can_view_other_users_session_messages(monkeypatch):
         source_channel="web",
     )
     message = SimpleNamespace(
+        id=uuid.uuid4(),
         role="user",
         content="hello",
         created_at=now,
@@ -240,6 +247,7 @@ async def test_creator_can_view_other_users_session_messages(monkeypatch):
 
     assert messages == [
         {
+            "id": str(message.id),
             "role": "user",
             "content": "hello",
             "created_at": now.isoformat(),

@@ -1,14 +1,12 @@
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.api import agents as agents_api
-from app.models.agent import Agent
-from app.models.user import User
 
 
 class _NestedTransaction:
@@ -120,7 +118,7 @@ def make_user(**overrides):
         "is_active": True,
     }
     values.update(overrides)
-    return User(**values)
+    return SimpleNamespace(**values)
 
 
 def make_agent(creator_id: uuid.UUID, **overrides):
@@ -131,9 +129,10 @@ def make_agent(creator_id: uuid.UUID, **overrides):
         "creator_id": creator_id,
         "status": "idle",
         "agent_type": "native",
+        "is_system": False,
     }
     values.update(overrides)
-    return Agent(**values)
+    return SimpleNamespace(**values)
 
 
 @pytest.mark.asyncio
@@ -173,7 +172,7 @@ async def test_delete_agent_cleans_remaining_foreign_key_rows(monkeypatch):
 async def test_archive_agent_task_history_writes_json_snapshot(tmp_path):
     agent_id = uuid.uuid4()
     task_id = uuid.uuid4()
-    created_at = datetime.now(UTC)
+    created_at = datetime.now(timezone.utc)
 
     task = SimpleNamespace(
         id=task_id,

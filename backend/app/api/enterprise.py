@@ -2,6 +2,7 @@
 
 import uuid
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -679,9 +680,19 @@ async def get_notification_bar_public(
     setting = result.scalar_one_or_none()
     if not setting or not setting.value:
         return {"enabled": False, "text": ""}
+    value = setting.value
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            logger.warning("[notification_bar] Invalid string value in system_settings; falling back to default")
+            return {"enabled": False, "text": ""}
+    if not isinstance(value, dict):
+        logger.warning(f"[notification_bar] Unexpected value type in system_settings: {type(value).__name__}")
+        return {"enabled": False, "text": ""}
     return {
-        "enabled": setting.value.get("enabled", False),
-        "text": setting.value.get("text", ""),
+        "enabled": bool(value.get("enabled", False)),
+        "text": str(value.get("text", "") or ""),
     }
 
 

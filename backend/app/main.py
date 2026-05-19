@@ -130,6 +130,7 @@ async def lifespan(app: FastAPI):
         import app.models.agent          # noqa
         import app.models.task           # noqa
         import app.models.llm            # noqa
+        import app.models.memory         # noqa
         import app.models.tool           # noqa
         import app.models.audit          # noqa
         import app.models.skill          # noqa
@@ -149,6 +150,7 @@ async def lifespan(app: FastAPI):
         import app.models.gateway_message # noqa
         import app.models.agent_node     # noqa
         import app.models.agent_credential  # noqa
+        import app.models.workflow      # noqa
         import app.models.okr            # noqa  OKR system tables
 
         import app.models.identity       # noqa
@@ -359,6 +361,8 @@ from app.api.agentbay_control import router as agentbay_control_router
 from app.api.okr import router as okr_router
 from app.api.marketplace import router as marketplace_router
 from app.api.agent_nodes import router as agent_nodes_router, admin_router as agent_nodes_admin_router
+from app.api.memory import router as memory_router
+from app.api.workflows import router as workflows_router
 
 app.include_router(auth_router, prefix=settings.API_PREFIX)
 app.include_router(agents_router, prefix=settings.API_PREFIX)
@@ -406,6 +410,8 @@ app.include_router(okr_router)  # OKR — self-prefixed at /api/okr
 app.include_router(marketplace_router, prefix=settings.API_PREFIX)
 app.include_router(agent_nodes_router, prefix=settings.API_PREFIX)
 app.include_router(agent_nodes_admin_router, prefix=settings.API_PREFIX)
+app.include_router(memory_router, prefix=settings.API_PREFIX)
+app.include_router(workflows_router, prefix=settings.API_PREFIX)
 
 
 @app.get("/api/health", response_model=HealthResponse, tags=["health"])

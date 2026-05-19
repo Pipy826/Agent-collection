@@ -21,6 +21,7 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     table_names = set(inspector.get_table_names())
+    is_sqlite = bind.dialect.name == "sqlite"
 
     if "tenants" in table_names:
         tenant_columns = {col["name"] for col in inspector.get_columns("tenants")}
@@ -42,29 +43,46 @@ def upgrade() -> None:
                 "okr_settings",
                 sa.Column("first_enabled_at", sa.DateTime(timezone=True), nullable=True),
             )
-        op.execute(
-            """
-            UPDATE okr_settings s
-            SET first_enabled_at = COALESCE(
-                (
-                    SELECT MIN(o.period_start)::timestamptz
-                    FROM okr_objectives o
-                    WHERE o.tenant_id = s.tenant_id
-                ),
-                NOW()
+        if is_sqlite:
+            op.execute(
+                """
+                UPDATE okr_settings
+                SET first_enabled_at = COALESCE(
+                    (
+                        SELECT MIN(o.period_start)
+                        FROM okr_objectives o
+                        WHERE o.tenant_id = okr_settings.tenant_id
+                    ),
+                    CURRENT_TIMESTAMP
+                )
+                WHERE enabled = 1
+                  AND first_enabled_at IS NULL
+                """
             )
-            WHERE s.enabled = TRUE
-              AND s.first_enabled_at IS NULL
-            """
-        )
+        else:
+            op.execute(
+                """
+                UPDATE okr_settings s
+                SET first_enabled_at = COALESCE(
+                    (
+                        SELECT MIN(o.period_start)::timestamptz
+                        FROM okr_objectives o
+                        WHERE o.tenant_id = s.tenant_id
+                    ),
+                    NOW()
+                )
+                WHERE s.enabled = TRUE
+                  AND s.first_enabled_at IS NULL
+                """
+            )
 
     if "member_daily_reports" not in table_names:
         op.create_table(
             "member_daily_reports",
-            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-            sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("id", sa.String(length=36) if is_sqlite else postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("tenant_id", sa.String(length=36) if is_sqlite else postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column("member_type", sa.String(length=20), nullable=False),
-            sa.Column("member_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("member_id", sa.String(length=36) if is_sqlite else postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column("report_date", sa.Date(), nullable=False),
             sa.Column("content", sa.Text(), nullable=False, server_default=""),
             sa.Column("status", sa.String(length=20), nullable=False, server_default="submitted"),
@@ -91,8 +109,8 @@ def upgrade() -> None:
     if "company_reports" not in table_names:
         op.create_table(
             "company_reports",
-            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-            sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("id", sa.String(length=36) if is_sqlite else postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("tenant_id", sa.String(length=36) if is_sqlite else postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column("report_type", sa.String(length=10), nullable=False),
             sa.Column("period_start", sa.Date(), nullable=False),
             sa.Column("period_end", sa.Date(), nullable=False),

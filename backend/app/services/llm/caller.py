@@ -401,6 +401,7 @@ async def call_llm(
     supports_vision=False,
     max_tool_rounds_override: int | None = None,
     skip_tools: bool = False,
+    extra_dynamic_context: str = "",
 ) -> str:
     """Call LLM via unified client with function-calling tool loop."""
     # Get agent config for tool rounds
@@ -417,6 +418,8 @@ async def call_llm(
     from app.services.agent_context import build_agent_context
     # Look up current user's display name so the agent knows who it's talking to
     static_prompt, dynamic_prompt = await build_agent_context(agent_id, agent_name, role_description, current_user_name=_user_name)
+    if extra_dynamic_context:
+        dynamic_prompt = f"{dynamic_prompt}\n\n{extra_dynamic_context}".strip() if dynamic_prompt else extra_dynamic_context
 
     # Load tools dynamically from DB. `skip_tools=True` is set by the WS
     # handler on the onboarding greeting turn — the bootstrap response is a
@@ -569,6 +572,7 @@ async def call_llm_with_failover(
     supports_vision=False,
     on_failover=None,
     skip_tools: bool = False,
+    extra_dynamic_context: str = "",
 ) -> str:
     """Call LLM with automatic failover support."""
     guard = FailoverGuard()
@@ -609,6 +613,7 @@ async def call_llm_with_failover(
         on_thinking=on_thinking,
         supports_vision=supports_vision,
         skip_tools=skip_tools,
+        extra_dynamic_context=extra_dynamic_context,
     )
 
     # Check if we need to failover
@@ -671,6 +676,7 @@ async def call_llm_with_failover(
         on_thinking=on_thinking,
         supports_vision=getattr(fallback_model, 'supports_vision', False),
         skip_tools=skip_tools,
+        extra_dynamic_context=extra_dynamic_context,
     )
 
     # Combine error messages if fallback also failed

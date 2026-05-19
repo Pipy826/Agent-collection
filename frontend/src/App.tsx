@@ -18,6 +18,7 @@ import InvitationCodes from './pages/InvitationCodes';
 import AdminCompanies from './pages/AdminCompanies';
 import SSOEntry from './pages/SSOEntry';
 import OKR from './pages/OKR';
+import WorkflowBuilder from './pages/WorkflowBuilder';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const token = useAuthStore((s) => s.token);
@@ -141,7 +142,7 @@ export default function App() {
 
     useEffect(() => {
         // Initialize theme on app mount (ensures login page gets correct theme)
-        const savedTheme = localStorage.getItem('theme') || 'dark';
+        const savedTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
 
         // Cross-domain tenant switch: the backend appends ?token=<jwt> to the redirect URL
@@ -195,7 +196,8 @@ export default function App() {
     }
 
     return (
-        <>
+        <div className="app-shell">
+            <div className="app-shell-content">
             <NotificationBar />
             <Routes>
                 <Route path="/login" element={<Login />} />
@@ -212,6 +214,7 @@ export default function App() {
                     <Route path="agents/:id" element={<Navigate to="chat" replace />} />
                     <Route path="agents/:id/chat" element={<AgentDetail />} />
                     <Route path="agents/:id/settings" element={<AgentDetail />} />
+                    <Route path="agents/:id/workflows" element={<WorkflowBuilder />} />
                     <Route path="messages" element={<Messages />} />
                     <Route path="enterprise" element={<EnterpriseSettings />} />
                     <Route path="okr" element={<OKR />} />
@@ -219,6 +222,7 @@ export default function App() {
                     <Route path="admin/platform-settings" element={<AdminCompanies />} />
                 </Route>
             </Routes>
-        </>
+            </div>
+        </div>
     );
 }

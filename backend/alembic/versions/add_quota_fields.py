@@ -1,8 +1,6 @@
-"""Add usage quota fields to users, agents, and tenants tables.
+"""Add usage quota fields to users, agents, and tenants tables."""
 
-Idempotent — uses IF NOT EXISTS for all ALTER statements.
-"""
-
+import sqlalchemy as sa
 from alembic import op
 
 revision = "add_quota_fields"
@@ -12,29 +10,34 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Users table: quota fields
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_message_limit INTEGER DEFAULT 50")
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_message_period VARCHAR(20) DEFAULT 'permanent'")
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_messages_used INTEGER DEFAULT 0")
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_period_start TIMESTAMPTZ")
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_max_agents INTEGER DEFAULT 2")
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_agent_ttl_hours INTEGER DEFAULT 0")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    # Agents table: expiry + LLM call tracking
-    op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ")
-    op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT FALSE")
-    op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS llm_calls_today INTEGER DEFAULT 0")
-    op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS max_llm_calls_per_day INTEGER DEFAULT 1000")
-    op.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS llm_calls_reset_at TIMESTAMPTZ")
+    def add_column_if_missing(table_name: str, column: sa.Column) -> None:
+        existing = {col["name"] for col in inspector.get_columns(table_name)}
+        if column.name not in existing:
+            op.add_column(table_name, column)
 
-    # Tenants table: default quotas + heartbeat floor
-    op.execute("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS default_message_limit INTEGER DEFAULT 50")
-    op.execute("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS default_message_period VARCHAR(20) DEFAULT 'permanent'")
-    op.execute("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS default_max_agents INTEGER DEFAULT 2")
-    op.execute("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS default_agent_ttl_hours INTEGER DEFAULT 0")
-    op.execute("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS default_max_llm_calls_per_day INTEGER DEFAULT 1000")
-    op.execute("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS min_heartbeat_interval_minutes INTEGER DEFAULT 120")
+    add_column_if_missing("users", sa.Column("quota_message_limit", sa.Integer(), server_default="50"))
+    add_column_if_missing("users", sa.Column("quota_message_period", sa.String(length=20), server_default="permanent"))
+    add_column_if_missing("users", sa.Column("quota_messages_used", sa.Integer(), server_default="0"))
+    add_column_if_missing("users", sa.Column("quota_period_start", sa.DateTime(timezone=True), nullable=True))
+    add_column_if_missing("users", sa.Column("quota_max_agents", sa.Integer(), server_default="2"))
+    add_column_if_missing("users", sa.Column("quota_agent_ttl_hours", sa.Integer(), server_default="0"))
+
+    add_column_if_missing("agents", sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True))
+    add_column_if_missing("agents", sa.Column("is_expired", sa.Boolean(), server_default=sa.false()))
+    add_column_if_missing("agents", sa.Column("llm_calls_today", sa.Integer(), server_default="0"))
+    add_column_if_missing("agents", sa.Column("max_llm_calls_per_day", sa.Integer(), server_default="1000"))
+    add_column_if_missing("agents", sa.Column("llm_calls_reset_at", sa.DateTime(timezone=True), nullable=True))
+
+    add_column_if_missing("tenants", sa.Column("default_message_limit", sa.Integer(), server_default="50"))
+    add_column_if_missing("tenants", sa.Column("default_message_period", sa.String(length=20), server_default="permanent"))
+    add_column_if_missing("tenants", sa.Column("default_max_agents", sa.Integer(), server_default="2"))
+    add_column_if_missing("tenants", sa.Column("default_agent_ttl_hours", sa.Integer(), server_default="0"))
+    add_column_if_missing("tenants", sa.Column("default_max_llm_calls_per_day", sa.Integer(), server_default="1000"))
+    add_column_if_missing("tenants", sa.Column("min_heartbeat_interval_minutes", sa.Integer(), server_default="120"))
 
 
 def downgrade() -> None:
-    pass  # Not reversible safely (columns may have data)
+    pass

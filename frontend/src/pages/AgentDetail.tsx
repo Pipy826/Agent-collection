@@ -45,6 +45,8 @@ import {
     IconSend,
     IconSettings,
     IconTerminal2,
+    IconThumbDown,
+    IconThumbUp,
     IconTools,
     IconUser,
     IconWorld,
@@ -445,6 +447,10 @@ function ToolsManager({ agentId, canManage = false }: { agentId: string; canMana
         }, {});
 
     const categoryLabels = getCategoryLabels(t);
+    const getLocalizedToolName = (tool: any) =>
+        t(`agent.tools.toolNames.${tool.name}`, { defaultValue: tool.display_name || tool.name });
+    const getLocalizedToolDescription = (tool: any) =>
+        t(`agent.tools.toolDescriptions.${tool.name}`, { defaultValue: tool.description || '' });
     const categoryDescriptions: Record<string, string> = {
         agentbay: 'Browser and cloud computer automation',
         file: 'Read, write, convert, and manage workspace files',
@@ -530,6 +536,8 @@ function ToolsManager({ agentId, canManage = false }: { agentId: string; canMana
         const hasConfig = tool.config_schema?.fields?.length > 0 || tool.type === 'mcp';
         const hasAgentOverride = tool.agent_config && Object.keys(tool.agent_config).length > 0;
         const isGlobalCategoryConfig = category === 'agentbay' && tool.name === 'agentbay_browser_navigate';
+        const localizedName = getLocalizedToolName(tool);
+        const localizedDescription = getLocalizedToolDescription(tool);
         return (
             <div key={tool.id} style={{
                 display: 'grid',
@@ -542,7 +550,7 @@ function ToolsManager({ agentId, canManage = false }: { agentId: string; canMana
             }}>
                 <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                        <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tool.display_name}</span>
+                        <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{localizedName}</span>
                         {tool.type === 'mcp' && (
                             <span style={{ fontSize: '10px', background: 'var(--primary)', color: '#fff', borderRadius: '4px', padding: '1px 5px', flexShrink: 0 }}>MCP</span>
                         )}
@@ -554,7 +562,7 @@ function ToolsManager({ agentId, canManage = false }: { agentId: string; canMana
                         )}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {tool.description}
+                        {localizedDescription}
                         {tool.mcp_server_name && <span> · {tool.mcp_server_name}</span>}
                     </div>
                 </div>
@@ -570,7 +578,7 @@ function ToolsManager({ agentId, canManage = false }: { agentId: string; canMana
                         <button
                             onClick={async () => {
                                 const ok = await dialog.confirm(
-                                    t('agent.tools.confirmDelete', `Remove "${tool.display_name}" from this agent?`),
+                                    t('agent.tools.confirmDelete', `Remove "${localizedName}" from this agent?`),
                                     { danger: true, confirmLabel: '移除' },
                                 );
                                 if (!ok) return;
@@ -739,6 +747,8 @@ function ToolsManager({ agentId, canManage = false }: { agentId: string; canMana
             tool.name,
             tool.display_name,
             tool.description,
+            getLocalizedToolName(tool),
+            getLocalizedToolDescription(tool),
             tool.mcp_server_name,
             category,
             categoryLabels[category],
@@ -2258,6 +2268,8 @@ function AgentDetailInner() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const token = useAuthStore((s) => s.token);
+    const currentUser = useAuthStore((s) => s.user);
     const location = useLocation();
     const validTabs = ['status', 'aware', 'mind', 'tools', 'skills', 'relationships', 'workspace', 'chat', 'activityLog', 'approvals', 'settings'];
     const settingsTabs = validTabs.filter(tab => !['aware', 'workspace', 'chat'].includes(tab));
@@ -2340,7 +2352,6 @@ function AgentDetailInner() {
     const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('workspace');
     const awarePanelVisible = activeTab === 'chat' && livePanelVisible && sidePanelTab === 'aware';
     const awareDataActive = activeTab === 'aware' || awarePanelVisible;
-
     // ── Aware tab data: triggers ──
     const { data: awareTriggers = [], refetch: refetchTriggers } = useQuery({
         queryKey: ['triggers', id],
@@ -2416,6 +2427,21 @@ function AgentDetailInner() {
         queryFn: () => fileApi.list(id!, 'memory'),
         enabled: !!id && activeTab === 'mind',
     });
+    const { data: durableMemories = [] } = useQuery({
+        queryKey: ['agent-memory', id],
+        queryFn: () => agentApi.memory.list(id!),
+        enabled: !!id && activeTab === 'mind',
+    });
+    const { data: feedbackItems = [] } = useQuery({
+        queryKey: ['agent-feedback', id],
+        queryFn: () => agentApi.feedback.list(id!),
+        enabled: !!id && (activeTab === 'mind' || activeTab === 'chat'),
+    });
+    const { data: knowledgeGaps = [] } = useQuery({
+        queryKey: ['knowledge-gaps', id],
+        queryFn: () => enterpriseApi.knowledgeGaps(id!),
+        enabled: !!id && activeTab === 'mind' && ['platform_admin', 'org_admin'].includes((currentUser as any)?.role || ''),
+    });
     const [expandedMemory, setExpandedMemory] = useState<string | null>(null);
     const { data: memoryFileContent } = useQuery({
         queryKey: ['file', id, expandedMemory],
@@ -2456,8 +2482,6 @@ function AgentDetailInner() {
     const [allSessionsLoading, setAllSessionsLoading] = useState(false);
     const [agentExpired, setAgentExpired] = useState(false);
     // Websocket chat state (for 'me' conversation)
-    const token = useAuthStore((s) => s.token);
-    const currentUser = useAuthStore((s) => s.user);
     const isAgentOwner =
         currentUser?.id != null &&
         (agent as any)?.creator_id != null &&
@@ -2810,8 +2834,12 @@ function AgentDetailInner() {
         } catch (e: any) { toast.error('保存失败', { details: String(e?.message || e) }); }
         setExpirySaving(false);
     };
-    interface ChatMsg { role: 'user' | 'assistant' | 'tool_call'; content: string; fileName?: string; toolName?: string; toolCallId?: string; toolArgs?: any; toolStatus?: 'running' | 'done'; toolResult?: string; toolThinking?: string; thinking?: string; imageUrl?: string; timestamp?: string; }
+    interface ChatMsg { id?: string; role: 'user' | 'assistant' | 'tool_call'; content: string; fileName?: string; toolName?: string; toolCallId?: string; toolArgs?: any; toolStatus?: 'running' | 'done'; toolResult?: string; toolThinking?: string; thinking?: string; imageUrl?: string; timestamp?: string; }
     const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+    const [memorySearchQuery, setMemorySearchQuery] = useState('');
+    const [memorySearchResults, setMemorySearchResults] = useState<any[]>([]);
+    const [feedbackModal, setFeedbackModal] = useState<{ messageId: string; comment: string; correctedAnswer: string } | null>(null);
+    const [submittingFeedbackId, setSubmittingFeedbackId] = useState<string | null>(null);
     const getToolTargetKey = (args: any): string => {
         if (!args) return '';
         const parsed = typeof args === 'string'
@@ -3068,6 +3096,60 @@ function AgentDetailInner() {
             }
         }
         return parsed;
+    };
+    const feedbackByMessageId = useMemo(() => {
+        const map = new Map<string, any>();
+        feedbackItems.forEach((item: any) => {
+            if (item?.message_id) map.set(item.message_id, item);
+        });
+        return map;
+    }, [feedbackItems]);
+
+    const rebuildMemoryMut = useMutation({
+        mutationFn: async () => agentApi.memory.rebuild(id!),
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['agent-memory', id] });
+            toast.success(`记忆重建完成：扫描 ${data.scanned_messages} 条消息，新增 ${data.created_memories} 条记忆`);
+        },
+        onError: async (err: any) => {
+            await dialog.alert('记忆重建失败', { type: 'error', details: String(err?.message || err) });
+        },
+    });
+
+    const runMemorySearch = async () => {
+        if (!id || !memorySearchQuery.trim()) {
+            setMemorySearchResults([]);
+            return;
+        }
+        try {
+            const res = await agentApi.memory.search(id, memorySearchQuery.trim(), 8);
+            setMemorySearchResults(res.items || []);
+        } catch (err: any) {
+            await dialog.alert('记忆检索失败', { type: 'error', details: String(err?.message || err) });
+        }
+    };
+
+    const submitFeedback = async (messageId: string, payload: { feedback_type: 'upvote' | 'downvote'; comment?: string; corrected_answer?: string }) => {
+        setSubmittingFeedbackId(messageId);
+        try {
+            await agentApi.feedback.submit(messageId, payload);
+            queryClient.invalidateQueries({ queryKey: ['agent-feedback', id] });
+            queryClient.invalidateQueries({ queryKey: ['knowledge-gaps', id] });
+            toast.success(payload.feedback_type === 'upvote' ? '已记录正向反馈' : '已记录纠错反馈');
+        } catch (err: any) {
+            await dialog.alert('提交反馈失败', { type: 'error', details: String(err?.message || err) });
+        } finally {
+            setSubmittingFeedbackId(null);
+        }
+    };
+
+    const handleFeedbackClick = async (msg: any, type: 'upvote' | 'downvote') => {
+        if (!msg?.id) return;
+        if (type === 'upvote') {
+            await submitFeedback(msg.id, { feedback_type: 'upvote' });
+            return;
+        }
+        setFeedbackModal({ messageId: msg.id, comment: '', correctedAnswer: '' });
     };
 
 
@@ -3635,7 +3717,7 @@ function AgentDetailInner() {
     }, [historyMsgs, activeSession?.id, scheduleHistoryScrollToBottom]);
     // Memoized component for each chat message to avoid re-renders while typing
     const ChatMessageItem = React.useMemo(() => React.memo(({
-        msg, i, isLeft, t, senderLabel, avatarText, forceSenderLabel = false, hideAvatar = false,
+        msg, i, isLeft, t, senderLabel, avatarText, forceSenderLabel = false, hideAvatar = false, onFeedback, feedbackValue, feedbackBusy = false,
     }: {
         msg: any;
         i: number;
@@ -3645,6 +3727,9 @@ function AgentDetailInner() {
         avatarText?: string;
         forceSenderLabel?: boolean;
         hideAvatar?: boolean;
+        onFeedback?: (msg: any, type: 'upvote' | 'downvote') => void;
+        feedbackValue?: 'upvote' | 'downvote' | null;
+        feedbackBusy?: boolean;
     }) => {
         const fe = msg.fileName?.split('.').pop()?.toLowerCase() ?? '';
         const isImage = msg.imageUrl && ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'].includes(fe);
@@ -3731,6 +3816,50 @@ function AgentDetailInner() {
                                 ) : <MarkdownRenderer content={displayContent} />
                             ) : <MarkdownRenderer content={displayContent} />}
                         </div>
+                        {msg.role === 'assistant' && !!msg.id && !((msg as any)._streaming) && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', paddingLeft: '2px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => onFeedback?.(msg, 'upvote')}
+                                    disabled={feedbackBusy}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '4px 8px',
+                                        borderRadius: '999px',
+                                        border: feedbackValue === 'upvote' ? '1px solid rgba(34,197,94,0.45)' : '1px solid var(--border-subtle)',
+                                        background: feedbackValue === 'upvote' ? 'rgba(34,197,94,0.08)' : 'transparent',
+                                        color: 'var(--text-secondary)',
+                                        cursor: feedbackBusy ? 'default' : 'pointer',
+                                        fontSize: '11px',
+                                    }}
+                                >
+                                    <IconThumbUp size={13} stroke={1.8} />
+                                    <span>有帮助</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onFeedback?.(msg, 'downvote')}
+                                    disabled={feedbackBusy}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '4px 8px',
+                                        borderRadius: '999px',
+                                        border: feedbackValue === 'downvote' ? '1px solid rgba(239,68,68,0.45)' : '1px solid var(--border-subtle)',
+                                        background: feedbackValue === 'downvote' ? 'rgba(239,68,68,0.08)' : 'transparent',
+                                        color: 'var(--text-secondary)',
+                                        cursor: feedbackBusy ? 'default' : 'pointer',
+                                        fontSize: '11px',
+                                    }}
+                                >
+                                    <IconThumbDown size={13} stroke={1.8} />
+                                    <span>需纠正</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
                     {timestampHtml}
                 </div>
@@ -4666,6 +4795,19 @@ function AgentDetailInner() {
                                         <span>{t('agent.tabs.aware')}</span>
                                     </button>
                                 )}
+                                <button
+                                    className="btn btn-ghost agent-top-action"
+                                    onClick={() => navigate(`/agents/${id}/workflows`)}
+                                >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="4" width="6" height="6" rx="1.5" />
+                                        <rect x="15" y="4" width="6" height="6" rx="1.5" />
+                                        <rect x="9" y="14" width="6" height="6" rx="1.5" />
+                                        <path d="M9 7h6" />
+                                        <path d="M12 10v4" />
+                                    </svg>
+                                    <span>Workflow</span>
+                                </button>
                                 <button
                                     className={`btn btn-ghost agent-top-action ${isSettingsRoute ? 'active' : ''}`}
                                     onClick={() => navigate(`/agents/${id}/settings`)}
@@ -5612,6 +5754,63 @@ function AgentDetailInner() {
                                     <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '12px' }}>
                                         {t('agent.mind.memoryDesc', 'Persistent memory accumulated through conversations and experiences.')}
                                     </p>
+                                    <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <input
+                                                className="input"
+                                                placeholder="搜索长期记忆 / 企业知识"
+                                                value={memorySearchQuery}
+                                                onChange={e => setMemorySearchQuery(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Enter') void runMemorySearch(); }}
+                                                style={{ minWidth: '240px', flex: '1 1 320px' }}
+                                            />
+                                            <button className="btn btn-secondary" onClick={() => void runMemorySearch()}>检索</button>
+                                            <button className="btn btn-secondary" disabled={rebuildMemoryMut.isPending} onClick={() => rebuildMemoryMut.mutate()}>
+                                                {rebuildMemoryMut.isPending ? '重建中...' : '重建记忆'}
+                                            </button>
+                                        </div>
+                                        {memorySearchResults.length > 0 && (
+                                            <div style={{ display: 'grid', gap: '8px' }}>
+                                                {memorySearchResults.map((item: any, idx: number) => (
+                                                    <div key={`${item.source}-${idx}`} style={{ padding: '10px 12px', border: '1px solid var(--border-subtle)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+                                                            <strong style={{ fontSize: '13px' }}>{item.title}</strong>
+                                                            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{item.source} · {Math.round((item.score || 0) * 100)}%</span>
+                                                        </div>
+                                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{item.content}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <div style={{ display: 'grid', gap: '8px' }}>
+                                            {(durableMemories || []).slice(0, 6).map((item: any) => (
+                                                <div key={item.id} style={{ padding: '10px 12px', border: '1px solid var(--border-subtle)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+                                                        <strong style={{ fontSize: '13px' }}>{item.title}</strong>
+                                                        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{item.memory_type} · {item.scope}</span>
+                                                    </div>
+                                                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{item.content}</div>
+                                                </div>
+                                            ))}
+                                            {!durableMemories.length && (
+                                                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>还没有结构化长期记忆，先通过聊天反馈或点击“重建记忆”生成。</div>
+                                            )}
+                                        </div>
+                                        {knowledgeGaps.length > 0 && (
+                                            <div style={{ display: 'grid', gap: '8px' }}>
+                                                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>高频知识缺口</div>
+                                                {knowledgeGaps.slice(0, 4).map((gap: any, idx: number) => (
+                                                    <div key={`${gap.question_cluster}-${idx}`} style={{ padding: '10px 12px', border: '1px solid var(--border-subtle)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+                                                            <strong style={{ fontSize: '13px' }}>{gap.question_cluster}</strong>
+                                                            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>频次 {gap.frequency}</span>
+                                                        </div>
+                                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{gap.suggested_action}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                     <FileBrowser api={adapter} rootPath="memory" readOnly features={{}} />
                                 </div>
 
@@ -5925,8 +6124,10 @@ function AgentDetailInner() {
                                 borderRadius: '12px',
                                 overflow: 'hidden',
                                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                                position: 'relative',
                             }}
                         >
+                            <div className="agent-chat-shell__content">
                             {/* ── Left: session sidebar ── */}
                             <div className={`session-sidebar ${sessionListCollapsed ? 'collapsed' : ''}`} style={{ width: sessionListCollapsed ? '0px' : '220px', transition: 'width 0.2s ease', flexShrink: 0, minHeight: 0, borderRight: sessionListCollapsed ? 'none' : '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                 {/* ── Header: scope dropdown + collapse ── */}
@@ -6437,11 +6638,14 @@ function AgentDetailInner() {
                                                                         msg={{ ...msg, thinking: undefined }}
                                                                         i={i}
                                                                         isLeft
-                                                                        t={t}
-                                                                        senderLabel={(agent as any)?.name || 'Agent'}
-                                                                        avatarText={((agent as any)?.name || 'Agent')[0]}
-                                                                        hideAvatar={hideAssistantAvatar}
-                                                                    />
+                                                                    t={t}
+                                                                    senderLabel={(agent as any)?.name || 'Agent'}
+                                                                    avatarText={((agent as any)?.name || 'Agent')[0]}
+                                                                    hideAvatar={hideAssistantAvatar}
+                                                                    onFeedback={handleFeedbackClick}
+                                                                    feedbackValue={feedbackByMessageId.get(msg.id || '')?.feedback_type || null}
+                                                                    feedbackBusy={submittingFeedbackId === msg.id}
+                                                                />
                                                                 )}
                                                             </React.Fragment>
                                                         );
@@ -6456,6 +6660,9 @@ function AgentDetailInner() {
                                                             senderLabel={msg.role === 'assistant' ? ((agent as any)?.name || 'Agent') : (currentUser?.display_name || undefined)}
                                                             avatarText={msg.role === 'assistant' ? (((agent as any)?.name || 'Agent')[0]) : (currentUser?.display_name?.[0] || undefined)}
                                                             hideAvatar={hideAssistantAvatar}
+                                                            onFeedback={handleFeedbackClick}
+                                                            feedbackValue={feedbackByMessageId.get(msg.id || '')?.feedback_type || null}
+                                                            feedbackBusy={submittingFeedbackId === msg.id}
                                                         />
                                                     );
                                                 });
@@ -6679,6 +6886,7 @@ function AgentDetailInner() {
                                         }));
                                     }}
                                 />
+                            </div>
                             </div>
                         </div>
                     )
@@ -7663,6 +7871,53 @@ function AgentDetailInner() {
                     }
                 }}
             />
+
+            {feedbackModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setFeedbackModal(null)}>
+                    <div onClick={e => e.stopPropagation()} style={{ width: 'min(560px, 92vw)', background: 'var(--bg-primary)', borderRadius: '12px', padding: '20px', boxShadow: '0 20px 50px rgba(0,0,0,0.28)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <h3 style={{ margin: 0, fontSize: '16px' }}>纠正这条回答</h3>
+                            <button onClick={() => setFeedbackModal(null)} style={{ border: 'none', background: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: '18px' }}>×</button>
+                        </div>
+                        <div style={{ display: 'grid', gap: '10px' }}>
+                            <textarea
+                                className="input"
+                                rows={3}
+                                placeholder="哪里有问题？可选"
+                                value={feedbackModal.comment}
+                                onChange={e => setFeedbackModal(prev => prev ? { ...prev, comment: e.target.value } : prev)}
+                                style={{ resize: 'vertical', width: '100%' }}
+                            />
+                            <textarea
+                                className="input"
+                                rows={5}
+                                placeholder="请填写更合适的答案，系统会进入待审核学习队列"
+                                value={feedbackModal.correctedAnswer}
+                                onChange={e => setFeedbackModal(prev => prev ? { ...prev, correctedAnswer: e.target.value } : prev)}
+                                style={{ resize: 'vertical', width: '100%' }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button className="btn btn-secondary" onClick={() => setFeedbackModal(null)}>取消</button>
+                                <button
+                                    className="btn btn-primary"
+                                    disabled={!feedbackModal.correctedAnswer.trim() || submittingFeedbackId === feedbackModal.messageId}
+                                    onClick={async () => {
+                                        const payload = feedbackModal;
+                                        await submitFeedback(payload.messageId, {
+                                            feedback_type: 'downvote',
+                                            comment: payload.comment.trim() || undefined,
+                                            corrected_answer: payload.correctedAnswer.trim(),
+                                        });
+                                        setFeedbackModal(null);
+                                    }}
+                                >
+                                    {submittingFeedbackId === feedbackModal.messageId ? '提交中...' : '提交纠正'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <ConfirmModal
                 open={!!deleteConfirm}

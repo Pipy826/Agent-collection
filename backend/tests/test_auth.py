@@ -181,6 +181,8 @@ async def test_get_me_returns_user():
     )
 
     with patch("app.api.auth.UserOut") as MockUserOut:
-        MockUserOut.model_validate.return_value = {"id": str(user.id), "email": user.email}
+        MockUserOut.model_validate.return_value = SimpleNamespace(id=str(user.id), email=user.email)
         result = await auth_api.get_me(current_user=user)
     MockUserOut.model_validate.assert_called_once_with(user)
+    assert result.id == str(user.id)
+    assert result.email == user.email

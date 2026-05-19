@@ -20,6 +20,7 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     table_names = set(inspector.get_table_names())
+    is_sqlite = bind.dialect.name == "sqlite"
 
     if "chat_sessions" not in table_names:
         return
@@ -47,38 +48,72 @@ def upgrade() -> None:
 
     # Elect a primary platform session for each (agent, user) pair based on the most useful
     # historical thread: prefer sessions with user messages, then most recently active.
-    op.execute(
-        """
-        WITH message_stats AS (
-            SELECT
-                conversation_id,
-                SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) AS user_msg_count
-            FROM chat_messages
-            GROUP BY conversation_id
-        ),
-        ranked_sessions AS (
+    if is_sqlite:
+        sessions = bind.execute(sa.text("""
             SELECT
                 cs.id,
-                ROW_NUMBER() OVER (
-                    PARTITION BY cs.agent_id, cs.user_id
-                    ORDER BY
-                        CASE WHEN COALESCE(ms.user_msg_count, 0) > 0 THEN 0 ELSE 1 END,
-                        COALESCE(cs.last_message_at, cs.created_at) DESC,
-                        cs.created_at DESC
-                ) AS rn
+                cs.agent_id,
+                cs.user_id,
+                COALESCE(SUM(CASE WHEN cm.role = 'user' THEN 1 ELSE 0 END), 0) AS user_msg_count,
+                COALESCE(cs.last_message_at, cs.created_at) AS sort_ts,
+                cs.created_at
             FROM chat_sessions cs
-            LEFT JOIN message_stats ms
-                ON ms.conversation_id = cs.id::text
+            LEFT JOIN chat_messages cm
+                ON cm.conversation_id = cs.id
             WHERE cs.source_channel = 'web'
-              AND COALESCE(cs.is_group, false) = false
+              AND COALESCE(cs.is_group, 0) = 0
+            GROUP BY cs.id, cs.agent_id, cs.user_id, cs.last_message_at, cs.created_at
+            ORDER BY
+                cs.agent_id,
+                cs.user_id,
+                CASE WHEN COALESCE(SUM(CASE WHEN cm.role = 'user' THEN 1 ELSE 0 END), 0) > 0 THEN 0 ELSE 1 END,
+                COALESCE(cs.last_message_at, cs.created_at) DESC,
+                cs.created_at DESC
+        """)).fetchall()
+
+        chosen = set()
+        for row in sessions:
+            key = (str(row.agent_id), str(row.user_id))
+            if key in chosen:
+                continue
+            chosen.add(key)
+            bind.execute(
+                sa.text("UPDATE chat_sessions SET is_primary = 1 WHERE id = :id"),
+                {"id": str(row.id)},
+            )
+    else:
+        op.execute(
+            """
+            WITH message_stats AS (
+                SELECT
+                    conversation_id,
+                    SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) AS user_msg_count
+                FROM chat_messages
+                GROUP BY conversation_id
+            ),
+            ranked_sessions AS (
+                SELECT
+                    cs.id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY cs.agent_id, cs.user_id
+                        ORDER BY
+                            CASE WHEN COALESCE(ms.user_msg_count, 0) > 0 THEN 0 ELSE 1 END,
+                            COALESCE(cs.last_message_at, cs.created_at) DESC,
+                            cs.created_at DESC
+                    ) AS rn
+                FROM chat_sessions cs
+                LEFT JOIN message_stats ms
+                    ON ms.conversation_id = cs.id::text
+                WHERE cs.source_channel = 'web'
+                  AND COALESCE(cs.is_group, false) = false
+            )
+            UPDATE chat_sessions cs
+            SET is_primary = true
+            FROM ranked_sessions rs
+            WHERE cs.id = rs.id
+              AND rs.rn = 1
+            """
         )
-        UPDATE chat_sessions cs
-        SET is_primary = true
-        FROM ranked_sessions rs
-        WHERE cs.id = rs.id
-          AND rs.rn = 1
-        """
-    )
 
     chat_session_indexes = {idx["name"] for idx in inspector.get_indexes("chat_sessions")}
     if "uq_chat_sessions_primary_platform" not in chat_session_indexes:
@@ -88,6 +123,7 @@ def upgrade() -> None:
             ["agent_id", "user_id"],
             unique=True,
             postgresql_where=sa.text("is_primary = true AND source_channel = 'web' AND is_group = false"),
+            sqlite_where=sa.text("is_primary = 1 AND source_channel = 'web' AND COALESCE(is_group, 0) = 0"),
         )
     if "ix_chat_sessions_is_primary" not in chat_session_indexes:
         op.create_index("ix_chat_sessions_is_primary", "chat_sessions", ["is_primary"])

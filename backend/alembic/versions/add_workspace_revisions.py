@@ -1,12 +1,9 @@
-"""Add workspace file revision and edit lock tables.
+"""Add workspace file revision and edit lock tables."""
 
-Revision ID: add_workspace_revisions
-Revises: okr_agent_id_sys_uq
-Create Date: 2026-04-15
-"""
 from typing import Sequence, Union
 
 from alembic import op
+import sqlalchemy as sa
 
 
 revision: str = "add_workspace_revisions"
@@ -16,46 +13,61 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("""
-        CREATE TABLE IF NOT EXISTS workspace_file_revisions (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-            path VARCHAR(500) NOT NULL,
-            operation VARCHAR(40) NOT NULL DEFAULT 'write',
-            actor_type VARCHAR(20) NOT NULL,
-            actor_id UUID,
-            session_id VARCHAR(200),
-            before_content TEXT,
-            after_content TEXT,
-            content_hash VARCHAR(64) NOT NULL DEFAULT '',
-            group_key VARCHAR(200),
-            created_at TIMESTAMPTZ DEFAULT now(),
-            updated_at TIMESTAMPTZ DEFAULT now()
-        )
-    """)
-    op.execute("CREATE INDEX IF NOT EXISTS ix_workspace_file_revisions_agent_id ON workspace_file_revisions(agent_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_workspace_file_revisions_path ON workspace_file_revisions(path)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_workspace_file_revisions_group_key ON workspace_file_revisions(group_key)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_workspace_file_revisions_created_at ON workspace_file_revisions(created_at)")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    op.execute("""
-        CREATE TABLE IF NOT EXISTS workspace_edit_locks (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-            path VARCHAR(500) NOT NULL,
-            user_id UUID NOT NULL REFERENCES users(id),
-            session_id VARCHAR(200),
-            expires_at TIMESTAMPTZ NOT NULL,
-            heartbeat_count INTEGER NOT NULL DEFAULT 0,
-            created_at TIMESTAMPTZ DEFAULT now(),
-            updated_at TIMESTAMPTZ DEFAULT now(),
-            CONSTRAINT uq_workspace_edit_locks_agent_path UNIQUE (agent_id, path)
+    if "workspace_file_revisions" not in inspector.get_table_names():
+        op.create_table(
+            "workspace_file_revisions",
+            sa.Column("id", sa.String(length=36), primary_key=True),
+            sa.Column("agent_id", sa.String(length=36), nullable=False),
+            sa.Column("path", sa.String(length=500), nullable=False),
+            sa.Column("operation", sa.String(length=40), nullable=False, server_default="write"),
+            sa.Column("actor_type", sa.String(length=20), nullable=False),
+            sa.Column("actor_id", sa.String(length=36), nullable=True),
+            sa.Column("session_id", sa.String(length=200), nullable=True),
+            sa.Column("before_content", sa.Text(), nullable=True),
+            sa.Column("after_content", sa.Text(), nullable=True),
+            sa.Column("content_hash", sa.String(length=64), nullable=False, server_default=""),
+            sa.Column("group_key", sa.String(length=200), nullable=True),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         )
-    """)
-    op.execute("CREATE INDEX IF NOT EXISTS ix_workspace_edit_locks_agent_id ON workspace_edit_locks(agent_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_workspace_edit_locks_path ON workspace_edit_locks(path)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_workspace_edit_locks_user_id ON workspace_edit_locks(user_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_workspace_edit_locks_expires_at ON workspace_edit_locks(expires_at)")
+
+    if "workspace_edit_locks" not in inspector.get_table_names():
+        op.create_table(
+            "workspace_edit_locks",
+            sa.Column("id", sa.String(length=36), primary_key=True),
+            sa.Column("agent_id", sa.String(length=36), nullable=False),
+            sa.Column("path", sa.String(length=500), nullable=False),
+            sa.Column("user_id", sa.String(length=36), nullable=False),
+            sa.Column("session_id", sa.String(length=200), nullable=True),
+            sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("heartbeat_count", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+            sa.UniqueConstraint("agent_id", "path", name="uq_workspace_edit_locks_agent_path"),
+        )
+
+    file_indexes = {idx["name"] for idx in inspector.get_indexes("workspace_file_revisions")}
+    if "ix_workspace_file_revisions_agent_id" not in file_indexes:
+        op.create_index("ix_workspace_file_revisions_agent_id", "workspace_file_revisions", ["agent_id"], unique=False)
+    if "ix_workspace_file_revisions_path" not in file_indexes:
+        op.create_index("ix_workspace_file_revisions_path", "workspace_file_revisions", ["path"], unique=False)
+    if "ix_workspace_file_revisions_group_key" not in file_indexes:
+        op.create_index("ix_workspace_file_revisions_group_key", "workspace_file_revisions", ["group_key"], unique=False)
+    if "ix_workspace_file_revisions_created_at" not in file_indexes:
+        op.create_index("ix_workspace_file_revisions_created_at", "workspace_file_revisions", ["created_at"], unique=False)
+
+    lock_indexes = {idx["name"] for idx in inspector.get_indexes("workspace_edit_locks")}
+    if "ix_workspace_edit_locks_agent_id" not in lock_indexes:
+        op.create_index("ix_workspace_edit_locks_agent_id", "workspace_edit_locks", ["agent_id"], unique=False)
+    if "ix_workspace_edit_locks_path" not in lock_indexes:
+        op.create_index("ix_workspace_edit_locks_path", "workspace_edit_locks", ["path"], unique=False)
+    if "ix_workspace_edit_locks_user_id" not in lock_indexes:
+        op.create_index("ix_workspace_edit_locks_user_id", "workspace_edit_locks", ["user_id"], unique=False)
+    if "ix_workspace_edit_locks_expires_at" not in lock_indexes:
+        op.create_index("ix_workspace_edit_locks_expires_at", "workspace_edit_locks", ["expires_at"], unique=False)
 
 
 def downgrade() -> None:

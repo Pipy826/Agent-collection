@@ -1,6 +1,6 @@
 /** API service layer */
 
-import type { Agent, TokenResponse, User, Task, ChatMessage } from '../types';
+import type { Agent, TokenResponse, User, Task, ChatMessage, WorkflowDefinition, WorkflowRun, MemoryDocument, MemorySearchItem, AnswerFeedback, GoldenExample, KnowledgeGap } from '../types';
 
 const API_BASE = '/api';
 
@@ -282,6 +282,35 @@ export const agentApi = {
         request<any>(`/agents/${agentId}/nodes/${nodeId}/regenerate-key`, {
             method: 'POST',
         }),
+
+    memory: {
+        list: (agentId: string) =>
+            request<MemoryDocument[]>(`/agents/${agentId}/memory`),
+        create: (agentId: string, data: any) =>
+            request<MemoryDocument>(`/agents/${agentId}/memory`, {
+                method: 'POST',
+                body: JSON.stringify(data),
+            }),
+        search: (agentId: string, query: string, limit = 10) =>
+            request<{ items: MemorySearchItem[]; total: number }>(`/agents/${agentId}/memory/search`, {
+                method: 'POST',
+                body: JSON.stringify({ query, limit }),
+            }),
+        rebuild: (agentId: string) =>
+            request<{ scanned_messages: number; created_memories: number; status: string }>(`/agents/${agentId}/memory/rebuild`, {
+                method: 'POST',
+            }),
+    },
+
+    feedback: {
+        list: (agentId: string) =>
+            request<AnswerFeedback[]>(`/agents/${agentId}/feedback`),
+        submit: (messageId: string, data: { feedback_type: 'upvote' | 'downvote'; comment?: string; corrected_answer?: string }) =>
+            request<AnswerFeedback>(`/messages/${messageId}/feedback`, {
+                method: 'POST',
+                body: JSON.stringify(data),
+            }),
+    },
 };
 
 // ─── Tasks ────────────────────────────────────────────
@@ -304,6 +333,47 @@ export const taskApi = {
 
     trigger: (agentId: string, taskId: string) =>
         request<any>(`/agents/${agentId}/tasks/${taskId}/trigger`, { method: 'POST' }),
+};
+
+export const workflowApi = {
+    list: (agentId: string) =>
+        request<WorkflowDefinition[]>(`/agents/${agentId}/workflows/`),
+
+    get: (agentId: string, workflowId: string) =>
+        request<WorkflowDefinition>(`/agents/${agentId}/workflows/${workflowId}`),
+
+    create: (agentId: string, data: Partial<WorkflowDefinition>) =>
+        request<WorkflowDefinition>(`/agents/${agentId}/workflows/`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+    update: (agentId: string, workflowId: string, data: Partial<WorkflowDefinition>) =>
+        request<WorkflowDefinition>(`/agents/${agentId}/workflows/${workflowId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        }),
+
+    delete: (agentId: string, workflowId: string) =>
+        request<void>(`/agents/${agentId}/workflows/${workflowId}`, { method: 'DELETE' }),
+
+    runs: (agentId: string, workflowId: string) =>
+        request<WorkflowRun[]>(`/agents/${agentId}/workflows/${workflowId}/runs`),
+
+    run: (agentId: string, workflowId: string, inputPayload: Record<string, any> = {}) =>
+        request<WorkflowRun>(`/agents/${agentId}/workflows/${workflowId}/runs`, {
+            method: 'POST',
+            body: JSON.stringify({ input_payload: inputPayload, trigger_type: 'manual' }),
+        }),
+
+    getRun: (agentId: string, workflowId: string, runId: string) =>
+        request<WorkflowRun>(`/agents/${agentId}/workflows/${workflowId}/runs/${runId}`),
+
+    resolveApproval: (agentId: string, workflowId: string, runId: string, action: 'approve' | 'reject') =>
+        request<WorkflowRun>(`/agents/${agentId}/workflows/${workflowId}/runs/${runId}/resolve-approval`, {
+            method: 'POST',
+            body: JSON.stringify({ action }),
+        }),
 };
 
 // ─── Files ────────────────────────────────────────────
@@ -422,6 +492,25 @@ export const enterpriseApi = {
         request(`/enterprise/knowledge-base/content?path=${encodeURIComponent(path)}`, {
             method: 'DELETE',
         }),
+
+    goldenExamples: (status?: string, agentId?: string) => {
+        const params = new URLSearchParams();
+        if (status) params.set('status', status);
+        if (agentId) params.set('agent_id', agentId);
+        return request<GoldenExample[]>(`/enterprise/golden-examples${params.toString() ? `?${params.toString()}` : ''}`);
+    },
+
+    reviewGoldenExample: (id: string, data: { status: string; review_note?: string }) =>
+        request<GoldenExample>(`/enterprise/golden-examples/${id}/review`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+    knowledgeGaps: (agentId?: string) => {
+        const params = new URLSearchParams();
+        if (agentId) params.set('agent_id', agentId);
+        return request<KnowledgeGap[]>(`/enterprise/knowledge-gaps${params.toString() ? `?${params.toString()}` : ''}`);
+    },
 };
 
 // ─── Activity Logs ────────────────────────────────────
