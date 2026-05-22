@@ -19,6 +19,11 @@ import AdminCompanies from './pages/AdminCompanies';
 import SSOEntry from './pages/SSOEntry';
 import OKR from './pages/OKR';
 import WorkflowBuilder from './pages/WorkflowBuilder';
+import A2AManagement from './pages/A2AManagement';
+import CollabSessions from './pages/CollabSessions';
+import Approvals from './pages/Approvals';
+import HotTopics from './pages/HotTopics';
+import WorkflowRunMonitor from './pages/WorkflowRunMonitor';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const token = useAuthStore((s) => s.token);
@@ -215,9 +220,14 @@ export default function App() {
                     <Route path="agents/:id/chat" element={<AgentDetail />} />
                     <Route path="agents/:id/settings" element={<AgentDetail />} />
                     <Route path="agents/:id/workflows" element={<WorkflowBuilder />} />
+                    <Route path="agents/:id/workflows/:workflowId/runs/:runId" element={<WorkflowRunMonitor />} />
                     <Route path="messages" element={<Messages />} />
                     <Route path="enterprise" element={<EnterpriseSettings />} />
                     <Route path="okr" element={<OKR />} />
+                    <Route path="a2a" element={<A2AManagement />} />
+                    <Route path="collab" element={<CollabSessions />} />
+                    <Route path="approvals" element={<Approvals />} />
+                    <Route path="hot-topics" element={<HotTopics />} />
                     <Route path="invitations" element={<InvitationCodes />} />
                     <Route path="admin/platform-settings" element={<AdminCompanies />} />
                 </Route>

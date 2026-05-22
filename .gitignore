@@ -26,6 +26,9 @@ backend/agent_data/
 ss-nodes.json
 .data/
 
+# Large archive files
+*.tar.gz
+
 # Ignore Antigravity / Claude Code agent configurations
 .agent/
 .agents/

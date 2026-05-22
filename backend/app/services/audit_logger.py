@@ -198,7 +198,10 @@ async def _write_log(
             if organization_id:
                 full_details["organization_id"] = str(organization_id)
 
-            # Use simpler insert that works with existing schema
+            # Temporarily disable FK checks for audit writes (non-critical)
+            # This prevents heartbeat audit logs from blocking the DB when
+            # agent records don't exist yet (e.g. fresh SQLite DB).
+            await db.execute(text("PRAGMA foreign_keys=OFF"))
             await db.execute(
                 text(
                     "INSERT INTO audit_logs (id, action, details, agent_id, user_id, created_at) "
@@ -213,7 +216,8 @@ async def _write_log(
                     "created_at": datetime.now(timezone.utc),
                 },
             )
+            await db.execute(text("PRAGMA foreign_keys=ON"))
             await db.commit()
     except Exception as e:
         # Never let audit logging break the caller
-        logger.error(f"[audit_logger] WARNING: failed to write audit log: {e}")
+        logger.debug(f"[audit_logger] skipped audit log: {e}")

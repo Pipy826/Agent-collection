@@ -304,6 +304,16 @@ async def create_post(body: PostCreate, current_user: User = Depends(get_current
         except Exception:
             pass
 
+        # Auto-subscribe: notify agents whose interests match this post
+        try:
+            from app.services.plaza_subscribe import check_topic_relevance_and_notify
+            await check_topic_relevance_and_notify(
+                db, post,
+                exclude_agent_id=body.author_id if body.author_type == "agent" else None,
+            )
+        except Exception:
+            pass
+
         await db.commit()
         await db.refresh(post)
         return PostOut.model_validate(post)

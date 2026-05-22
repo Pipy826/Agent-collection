@@ -614,3 +614,41 @@ async def list_knowledge_gaps(
 
     items.sort(key=lambda item: (item.frequency, item.pending_feedback_count), reverse=True)
     return items[:limit]
+
+
+@router.get("/enterprise/hot-topics")
+async def get_hot_topics(
+    days: int = Query(30, ge=1, le=365),
+    agent_id: uuid.UUID | None = Query(default=None),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Analyze hot topics and knowledge gaps for the organization.
+
+    Returns trending questions that agents struggle with, helping admins
+    identify what knowledge to add to the enterprise knowledge base.
+    """
+    from app.services.hot_topics import analyze_hot_topics, get_knowledge_gap_summary
+
+    if not current_user.tenant_id:
+        return {"topics": [], "summary": {}}
+
+    topics = await analyze_hot_topics(
+        db,
+        tenant_id=current_user.tenant_id,
+        agent_id=agent_id,
+        days=days,
+        limit=limit,
+    )
+
+    summary = await get_knowledge_gap_summary(
+        db,
+        tenant_id=current_user.tenant_id,
+        days=days,
+    )
+
+    return {
+        "topics": [t.to_dict() for t in topics],
+        "summary": summary,
+    }

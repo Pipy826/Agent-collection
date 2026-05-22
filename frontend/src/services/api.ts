@@ -374,6 +374,16 @@ export const workflowApi = {
             method: 'POST',
             body: JSON.stringify({ action }),
         }),
+
+    retryNode: (agentId: string, workflowId: string, runId: string, nodeRunId: string) =>
+        request<WorkflowRun>(`/agents/${agentId}/workflows/${workflowId}/runs/${runId}/retry-node/${nodeRunId}`, {
+            method: 'POST',
+        }),
+
+    cancelRun: (agentId: string, workflowId: string, runId: string) =>
+        request<WorkflowRun>(`/agents/${agentId}/workflows/${workflowId}/runs/${runId}/cancel`, {
+            method: 'POST',
+        }),
 };
 
 // ─── Files ────────────────────────────────────────────
@@ -655,4 +665,54 @@ export const controlApi = {
 
     unlock: (agentId: string, data: { session_id: string; export_cookies?: boolean; platform_hint?: string }) =>
         request<any>(`/agents/${agentId}/control/unlock`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
+// ─── A2A Cross-Instance ───────────────────────────────
+export const a2aApi = {
+    listInstances: () => request<any[]>('/a2a/instances'),
+    createInstance: (data: { name: string; base_url: string; auth_type?: string; auth_credential?: string }) =>
+        request<any>('/a2a/instances', { method: 'POST', body: JSON.stringify(data) }),
+    updateInstance: (id: string, data: any) =>
+        request<any>(`/a2a/instances/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    syncInstance: (id: string) =>
+        request<any>(`/a2a/instances/${id}/sync`, { method: 'POST' }),
+    searchAgents: (data: { skills?: string[]; labels?: string[]; query?: string; limit?: number }) =>
+        request<any[]>('/a2a/agents/search', { method: 'POST', body: JSON.stringify(data) }),
+    getAgentCard: (cardId: string) => request<any>(`/a2a/agents/${cardId}`),
+    createTask: (data: { target_card_id: string; source_agent_id?: string; request_payload: any }) =>
+        request<any>('/a2a/tasks', { method: 'POST', body: JSON.stringify(data) }),
+    getTask: (taskId: string) => request<any>(`/a2a/tasks/${taskId}`),
+    cancelTask: (taskId: string) => request<any>(`/a2a/tasks/${taskId}/cancel`, { method: 'POST' }),
+    getAuditLogs: (limit = 50) => request<any[]>(`/a2a/audit?limit=${limit}`),
+};
+
+// ─── Collaborative Sessions ──────────────────────────
+export const collabApi = {
+    listSessions: () => request<any[]>('/collab-sessions'),
+    createSession: (data: { title: string; agent_ids: string[]; description?: string }) =>
+        request<any>('/collab-sessions', { method: 'POST', body: JSON.stringify(data) }),
+    getSession: (id: string) => request<any>(`/collab-sessions/${id}`),
+    getParticipants: (id: string) => request<any[]>(`/collab-sessions/${id}/participants`),
+    addParticipant: (id: string, agentId: string) =>
+        request<any>(`/collab-sessions/${id}/participants`, { method: 'POST', body: JSON.stringify({ agent_id: agentId }) }),
+    removeParticipant: (id: string, agentId: string) =>
+        request<any>(`/collab-sessions/${id}/participants/${agentId}`, { method: 'DELETE' }),
+    getMessages: (id: string, limit = 50) => request<any[]>(`/collab-sessions/${id}/messages?limit=${limit}`),
+    sendMessage: (id: string, data: { content: string; mentioned_ids?: string[] }) =>
+        request<any>(`/collab-sessions/${id}/messages`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
+// ─── Approvals ────────────────────────────────────────
+export const approvalApi = {
+    list: (status = 'pending') => request<any[]>(`/approvals?status=${status}`),
+    create: (data: { agent_id: string; action_type: string; action_description: string; risk_level?: string }) =>
+        request<any>('/approvals', { method: 'POST', body: JSON.stringify(data) }),
+    resolve: (id: string, action: 'approve' | 'reject', note?: string) =>
+        request<any>(`/approvals/${id}/resolve`, { method: 'POST', body: JSON.stringify({ action, note }) }),
+    stats: () => request<any>('/approvals/stats'),
+};
+
+// ─── Hot Topics ───────────────────────────────────────
+export const hotTopicsApi = {
+    get: (days = 30, limit = 20) => request<any>(`/enterprise/hot-topics?days=${days}&limit=${limit}`),
 };

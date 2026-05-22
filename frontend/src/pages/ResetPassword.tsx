@@ -16,7 +16,7 @@ export default function ResetPassword() {
     const [success, setSuccess] = useState(false);
 
     useEffect(() => {
-        document.documentElement.setAttribute('data-theme', 'light');
+        // Respect system/user theme preference
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {

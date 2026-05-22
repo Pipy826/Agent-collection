@@ -307,7 +307,10 @@ app = FastAPI(
 app.add_middleware(TraceIdMiddleware)
 
 # CORS
-_cors_origins = settings.CORS_ORIGINS
+_cors_origins = list(settings.CORS_ORIGINS)
+# Auto-add PUBLIC_BASE_URL if set (for production deployments)
+if settings.PUBLIC_BASE_URL and settings.PUBLIC_BASE_URL not in _cors_origins:
+    _cors_origins.append(settings.PUBLIC_BASE_URL)
 _allow_creds = "*" not in _cors_origins  # CORS spec forbids credentials with wildcard
 app.add_middleware(
     CORSMiddleware,
@@ -363,6 +366,9 @@ from app.api.marketplace import router as marketplace_router
 from app.api.agent_nodes import router as agent_nodes_router, admin_router as agent_nodes_admin_router
 from app.api.memory import router as memory_router
 from app.api.workflows import router as workflows_router
+from app.api.a2a import router as a2a_router
+from app.api.collab_sessions import router as collab_sessions_router
+from app.api.approvals import router as approvals_router
 
 app.include_router(auth_router, prefix=settings.API_PREFIX)
 app.include_router(agents_router, prefix=settings.API_PREFIX)
@@ -412,12 +418,50 @@ app.include_router(agent_nodes_router, prefix=settings.API_PREFIX)
 app.include_router(agent_nodes_admin_router, prefix=settings.API_PREFIX)
 app.include_router(memory_router, prefix=settings.API_PREFIX)
 app.include_router(workflows_router, prefix=settings.API_PREFIX)
+app.include_router(a2a_router, prefix=settings.API_PREFIX)
+app.include_router(collab_sessions_router, prefix=settings.API_PREFIX)
+app.include_router(approvals_router, prefix=settings.API_PREFIX)
 
 
 @app.get("/api/health", response_model=HealthResponse, tags=["health"])
 async def health_check():
     """Health check endpoint."""
     return HealthResponse(status="ok", version=settings.APP_VERSION)
+
+
+@app.get("/api/health/deep", tags=["health"])
+async def deep_health_check():
+    """Deep health check — verifies database and Redis connectivity.
+
+    Use this for Kubernetes readiness probes.
+    """
+    checks = {"status": "ok", "version": settings.APP_VERSION, "db": "unknown", "redis": "unknown"}
+
+    # Check database
+    try:
+        from app.database import async_session
+        from sqlalchemy import text
+        async with async_session() as db:
+            await db.execute(text("SELECT 1"))
+        checks["db"] = "ok"
+    except Exception as e:
+        checks["db"] = f"error: {str(e)[:100]}"
+        checks["status"] = "degraded"
+
+    # Check Redis
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        await r.ping()
+        await r.aclose()
+        checks["redis"] = "ok"
+    except Exception as e:
+        checks["redis"] = f"error: {str(e)[:100]}"
+        checks["status"] = "degraded"
+
+    from fastapi.responses import JSONResponse
+    status_code = 200 if checks["status"] == "ok" else 503
+    return JSONResponse(content=checks, status_code=status_code)
 
 
 # ── Version endpoint (public, no auth required) ──

@@ -849,6 +849,41 @@ export default function Layout() {
                             </span>
                             <span className="sidebar-item-text">{t('nav.okr', 'OKR')}</span>
                         </NavLink>
+                        <NavLink to="/collab" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                            <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+                                </svg>
+                            </span>
+                            <span className="sidebar-item-text">{t('nav.collab', '协作')}</span>
+                        </NavLink>
+                        <NavLink to="/approvals" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                            <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M9 11l3 3L22 4"/>
+                                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                                </svg>
+                            </span>
+                            <span className="sidebar-item-text">{t('nav.approvals', '审批')}</span>
+                        </NavLink>
+                        <NavLink to="/a2a" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                            <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="6" cy="12" r="3"/><circle cx="18" cy="12" r="3"/><path d="M9 12h6"/>
+                                </svg>
+                            </span>
+                            <span className="sidebar-item-text">{t('nav.a2a', 'A2A')}</span>
+                        </NavLink>
+                        <NavLink to="/hot-topics" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                            <span className="sidebar-item-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 2C12 2 16 6 16 10a4 4 0 01-8 0c0-2 1-3.5 2-4.5 0 0 .5 2 2 2.5C12 8 12 2 12 2z"/><path d="M8 21h8M12 17v4"/>
+                                </svg>
+                            </span>
+                            <span className="sidebar-item-text">{t('nav.hotTopics', '热点')}</span>
+                        </NavLink>
                     </div>
                 </div>
                 

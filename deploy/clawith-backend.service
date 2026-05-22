@@ -1,0 +1,28 @@
+[Unit]
+Description=Clawith Backend API Server
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=clawith
+Group=clawith
+WorkingDirectory=/opt/clawith/backend
+Environment=PATH=/opt/clawith/venv/bin:/usr/local/bin:/usr/bin
+EnvironmentFile=/opt/clawith/.env
+ExecStart=/opt/clawith/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8009 --workers 4 --log-level info
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/clawith /var/log/clawith
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

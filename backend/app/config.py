@@ -119,7 +119,7 @@ class Settings(BaseSettings):
     HTTP_PROXY: str = ""
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3008", "http://localhost:5173"]
 
     # Jina AI (Reader + Search APIs)
     JINA_API_KEY: str = ""

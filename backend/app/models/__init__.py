@@ -29,3 +29,5 @@ from app.models import trigger  # noqa: F401
 from app.models import user  # noqa: F401
 from app.models import workspace  # noqa: F401
 from app.models import workflow  # noqa: F401
+from app.models import a2a  # noqa: F401
+from app.models import collab_session  # noqa: F401
