@@ -2496,13 +2496,21 @@ select:focus {
 .login-field select {
   height: 50px;
   padding: 0 32px 0 15px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(25, 165, 111, 0.12);
+  background: var(--login-input-bg, #ffffff);
+  border: 1.5px solid var(--login-input-border, #b8c0d0);
   border-radius: 12px;
-  font-size: 14px;
-  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--login-input-text, #0f1117);
+  caret-color: var(--login-input-text, #0f1117);
   transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
   outline: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.login-field input[type="password"] {
+  letter-spacing: 0.06em;
+  font-family: var(--font-family);
 }
 
 .login-field select {
@@ -2510,14 +2518,25 @@ select:focus {
 }
 
 .login-field input::placeholder {
-  color: var(--text-tertiary);
+  color: var(--login-input-placeholder, #5d6575);
+  font-weight: 400;
+  opacity: 1;
 }
 
 .login-field input:focus,
 .login-field select:focus {
-  border-color: rgba(25, 165, 111, 0.34);
-  box-shadow: 0 0 0 4px rgba(25, 165, 111, 0.08);
-  background: #ffffff;
+  border-color: var(--login-input-border-focus, var(--accent-primary));
+  box-shadow: 0 0 0 4px var(--login-input-focus-ring, rgba(94, 106, 210, 0.18));
+  background: var(--login-input-bg-focus, #ffffff);
+}
+
+.login-field input:-webkit-autofill,
+.login-field input:-webkit-autofill:hover,
+.login-field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--login-input-text, #0f1117) !important;
+  caret-color: var(--login-input-text, #0f1117);
+  box-shadow: 0 0 0 1000px var(--login-input-bg, #ffffff) inset !important;
+  border: 1.5px solid var(--login-input-border-focus, var(--accent-primary));
 }
 
 .login-submit {
@@ -2775,15 +2794,52 @@ select:focus {
   border-color: var(--border-subtle);
 }
 
+[data-theme="dark"] .login-field input,
+[data-theme="dark"] .login-field select,
 [data-theme="dark"] .login-form-input {
-  background: var(--bg-elevated);
-  border-color: var(--border-default);
-  color: var(--text-primary);
+  background: #ffffff;
+  border-color: #8e97a7;
+  color: #0f1117;
+  caret-color: #0f1117;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
+[data-theme="dark"] .login-field input::placeholder {
+  color: #5d6575;
+}
+
+[data-theme="dark"] .login-field input:focus,
+[data-theme="dark"] .login-field select:focus,
 [data-theme="dark"] .login-form-input:focus {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px var(--accent-subtle);
+  box-shadow: 0 0 0 4px rgba(94, 106, 210, 0.28);
+  background: #ffffff;
+  color: #0f1117;
+}
+
+[data-theme="dark"] .login-field input:-webkit-autofill,
+[data-theme="dark"] .login-field input:-webkit-autofill:hover,
+[data-theme="dark"] .login-field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0f1117 !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+}
+
+[data-theme="light"] .login-field input,
+[data-theme="light"] .login-field select {
+  background: #ffffff;
+  border-color: #9aa3b5;
+  color: #0f1117;
+  caret-color: #0f1117;
+}
+
+[data-theme="light"] .login-field input::placeholder {
+  color: #5d6575;
+}
+
+[data-theme="light"] .login-field input:focus,
+[data-theme="light"] .login-field select:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 4px rgba(94, 106, 210, 0.16);
 }
 
 [data-theme="dark"] .login-form-submit {
