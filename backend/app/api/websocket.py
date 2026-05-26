@@ -186,7 +186,7 @@ async def websocket_chat(
 
     # Verify access and load agent + model
     agent_name = ""
-    agent_type = ""  # Track agent type for OpenClaw routing
+    agent_type = ""  # Track agent type for OpenCode gateway routing
     role_description = ""
     welcome_message = ""
     llm_model = None
@@ -526,8 +526,8 @@ async def websocket_chat(
                     await db.commit()
                 logger.info("[WS] User message saved")
 
-            # ── OpenClaw routing: insert into gateway_messages instead of LLM ──
-            if agent_type == "openclaw":
+            # ── OpenCode routing: insert into gateway_messages instead of LLM ──
+            if agent_type == "opencode":
                 from app.models.gateway_message import GatewayMessage as GwMsg
                 async with async_session() as db:
                     gw_msg = GwMsg(
@@ -539,11 +539,11 @@ async def websocket_chat(
                     )
                     db.add(gw_msg)
                     await db.commit()
-                logger.info("[WS] OpenClaw: message queued for gateway poll")
+                logger.info("[WS] OpenCode: message queued for gateway poll")
                 await websocket.send_json({
                     "type": "done",
                     "role": "assistant",
-                    "content": "Message forwarded to OpenClaw agent. Waiting for response..."
+                    "content": "Message forwarded to OpenCode agent. Waiting for response..."
                 })
                 continue
 

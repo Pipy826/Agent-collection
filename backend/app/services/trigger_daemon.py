@@ -628,6 +628,8 @@ async def _invoke_agent_for_triggers(agent_id: uuid.UUID, triggers: list[AgentTr
             agent = result.scalar_one_or_none()
             if not agent or agent.is_expired:
                 return
+            if getattr(agent, "agent_type", "native") == "opencode":
+                return
 
             # Load LLM model
             if not agent.primary_model_id:

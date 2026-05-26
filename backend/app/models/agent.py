@@ -131,7 +131,13 @@ class Agent(Base):
     @property
     def has_api_key(self) -> bool:
         """Whether this agent has API keys configured (via agent nodes or legacy hash)."""
-        return bool(self.api_key_hash) or bool(self.nodes)
+        if self.api_key_hash:
+            return True
+        from sqlalchemy.orm import attributes
+        nodes_state = attributes.instance_state(self).attrs.nodes
+        if nodes_state.loaded_value is not attributes.NO_VALUE:
+            return bool(nodes_state.loaded_value)
+        return False
 
     # AgentNode relationship for multi-node OpenCode management
     nodes: Mapped[list["AgentNode"]] = relationship(

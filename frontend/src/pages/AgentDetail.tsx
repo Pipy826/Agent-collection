@@ -4403,7 +4403,7 @@ function AgentDetailInner() {
         if (agent.status === 'error') return 'error';
         if (agent.status === 'creating') return 'creating';
         if (agent.status === 'stopped') return 'stopped';
-        if ((agent as any).agent_type === 'opencode' && agent.status === 'running' && (agent as any).opencode_last_seen) {
+        if ((agent as any).agent_type === 'opencode' && (agent as any).opencode_last_seen) {
             const elapsed = Date.now() - new Date((agent as any).opencode_last_seen).getTime();
             if (elapsed > 60 * 60 * 1000) return 'disconnected';
         }

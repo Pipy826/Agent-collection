@@ -54,7 +54,12 @@ async def _start_ss_local() -> None:
     # Load proxy nodes from config file (gitignored, mounted as Docker volume)
     import json as _json
     cfg_file = os.environ.get("SS_CONFIG_FILE", "/data/ss-nodes.json")
-    if os.path.exists(cfg_file):
+    if os.path.isdir(cfg_file):
+        logger.warning(
+            f"[Proxy] {cfg_file} is a directory (bad Docker bind on Windows?) — skipping proxy"
+        )
+        return
+    if os.path.isfile(cfg_file):
         # Guard against empty or malformed config file — both produce a clear
         # warning and a clean exit rather than an unhandled JSONDecodeError.
         try:

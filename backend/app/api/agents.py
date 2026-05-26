@@ -189,7 +189,15 @@ async def _agent_to_out(
     viewer_id: uuid.UUID,
 ) -> AgentOut:
     """Serialize one agent with ``onboarded_for_me`` for the given viewer."""
+    from sqlalchemy.orm import selectinload
     from app.services.onboarding import is_onboarded
+
+    result = await db.execute(
+        select(Agent)
+        .where(Agent.id == agent.id)
+        .options(selectinload(Agent.nodes))
+    )
+    agent = result.scalar_one()
     model = AgentOut.model_validate(agent)
     model.onboarded_for_me = await is_onboarded(db, agent.id, viewer_id)
     return model

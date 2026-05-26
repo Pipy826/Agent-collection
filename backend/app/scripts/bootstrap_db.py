@@ -67,6 +67,28 @@ PATCHES = [
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_type VARCHAR(20) NOT NULL DEFAULT 'native'",
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS api_key_hash VARCHAR(128)",
     "ALTER TABLE agents ADD COLUMN IF NOT EXISTS opencode_last_seen TIMESTAMPTZ",
+    """DO $rename$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'agents' AND column_name = 'openclaw_last_seen'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'agents' AND column_name = 'opencode_last_seen'
+    ) THEN
+        ALTER TABLE agents RENAME COLUMN openclaw_last_seen TO opencode_last_seen;
+    ELSIF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'agents' AND column_name = 'openclaw_last_seen'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'agents' AND column_name = 'opencode_last_seen'
+    ) THEN
+        UPDATE agents SET opencode_last_seen = COALESCE(opencode_last_seen, openclaw_last_seen);
+        ALTER TABLE agents DROP COLUMN openclaw_last_seen;
+    END IF;
+END
+$rename$""",
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sso_enabled BOOLEAN DEFAULT FALSE",
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sso_domain VARCHAR(255)",
     "CREATE UNIQUE INDEX IF NOT EXISTS ux_tenants_sso_domain ON tenants(sso_domain) WHERE sso_domain IS NOT NULL",

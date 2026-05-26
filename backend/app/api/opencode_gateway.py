@@ -13,7 +13,7 @@ import hashlib
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Header, HTTPException, Depends
+from fastapi import APIRouter, Header, HTTPException, Depends, Request
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,24 +40,12 @@ async def _get_node_and_agent_by_key(api_key: str, db: AsyncSession) -> tuple[Ag
     """Authenticate an OpenCode node by its API key. Returns (node, agent).
 
     Tries:
-    1. AgentNode table by plaintext key (new multi-node behavior)
-    2. AgentNode table by hashed key
-    3. Agent table by plaintext key (legacy single-node behavior)
-    4. Agent table by hashed key (legacy fallback)
+    1. AgentNode table by hashed key
+    2. Agent table by hashed key (legacy single-node behavior)
     """
-    # 1. AgentNode — plaintext
-    result = await db.execute(
-        select(AgentNode).where(AgentNode.api_key_hash == api_key)
-    )
-    node = result.scalar_one_or_none()
-    if node:
-        agent_result = await db.execute(select(Agent).where(Agent.id == node.agent_id))
-        agent = agent_result.scalar_one_or_none()
-        if agent:
-            return node, agent
-
-    # 2. AgentNode — hashed
     key_hash = _hash_key(api_key)
+
+    # 1. AgentNode — hashed
     result = await db.execute(
         select(AgentNode).where(AgentNode.api_key_hash == key_hash)
     )
@@ -68,19 +56,7 @@ async def _get_node_and_agent_by_key(api_key: str, db: AsyncSession) -> tuple[Ag
         if agent:
             return node, agent
 
-    # 3. Legacy Agent-level — plaintext
-    result = await db.execute(
-        select(Agent).where(
-            Agent.api_key_hash == api_key,
-            Agent.agent_type == "opencode",
-        )
-    )
-    agent = result.scalar_one_or_none()
-    if agent:
-        # Create a synthetic node for legacy compatibility
-        return None, agent
-
-    # 4. Legacy Agent-level — hashed
+    # 2. Legacy Agent-level — hashed
     result = await db.execute(
         select(Agent).where(
             Agent.api_key_hash == key_hash,
@@ -280,15 +256,16 @@ async def report_result(
 
     await db.commit()
 
-    # Push to WebSocket if user is connected
+    # Push to WebSocket if user is connected (scope to the originating session)
     if body.result and msg.conversation_id and msg.sender_user_id:
         try:
             from app.api.websocket import manager
-            await manager.send_message(str(agent.id), {
+            payload = {
                 "type": "done",
                 "role": "assistant",
                 "content": body.result,
-            })
+            }
+            await manager.send_to_session(str(agent.id), msg.conversation_id, payload)
         except Exception:
             pass  # User may have disconnected
 
@@ -556,7 +533,7 @@ async def send_message(
             return {
                 "status": "accepted",
                 "target": target_agent.name,
-                "type": "openclaw_agent",
+                "type": "opencode_agent",
                 "message": f"Message sent to {target_agent.name}. Reply will appear in your next poll.",
             }
         else:
@@ -677,6 +654,7 @@ async def send_message(
 @router.get("/setup-guide/{agent_id}")
 async def get_setup_guide(
     agent_id: uuid.UUID,
+    request: Request,
     x_api_key: str = Header(..., alias="X-Api-Key"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -685,14 +663,15 @@ async def get_setup_guide(
     if agent.id != agent_id:
         raise HTTPException(status_code=403, detail="Key does not match this agent")
 
-    base_url = "https://try.opencode.ai"
+    from app.services.platform_service import platform_service
+    base_url = await platform_service.get_public_base_url(db, request)
 
     skill_content = f"""---
-name: opencode_sync
-description: Sync with OpenCode platform — check inbox, submit results, and send messages.
+name: clawith_sync
+description: Sync with Clawith platform — check inbox, submit results, and send messages.
 ---
 
-# OpenCode Sync
+# Clawith Sync
 
 ## When to use
 Check for new messages from the OpenCode platform during every heartbeat cycle.
@@ -740,10 +719,10 @@ The system auto-detects the best channel. For agents, the reply appears in your 
 For humans, the message is delivered via their available channel (e.g. Feishu).
 """
 
-    heartbeat_line = "- Check OpenCode inbox using the opencode_sync skill and process any pending messages"
+    heartbeat_line = "- Check Clawith inbox using the clawith_sync skill and process any pending messages"
 
     return {
-        "skill_filename": "opencode_sync.md",
+        "skill_filename": "clawith_sync.md",
         "skill_content": skill_content,
         "heartbeat_addition": heartbeat_line,
     }

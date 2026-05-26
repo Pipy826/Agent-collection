@@ -73,7 +73,7 @@ const getAgentBadgeStatus = (agent: any): string | null => {
     if (agent.status === 'error') return 'error';
     if (agent.status === 'creating') return 'creating';
     // OpenCode disconnected detection: 60 min timeout
-    if (agent.agent_type === 'opencode' && agent.status === 'running' && agent.opencode_last_seen) {
+    if (agent.agent_type === 'opencode' && agent.opencode_last_seen) {
         const elapsed = Date.now() - new Date(agent.opencode_last_seen).getTime();
         if (elapsed > 60 * 60 * 1000) return 'disconnected';
     }

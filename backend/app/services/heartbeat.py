@@ -158,6 +158,8 @@ async def _execute_heartbeat(agent_id: uuid.UUID):
             agent = result.scalar_one_or_none()
             if not agent:
                 return
+            if getattr(agent, "agent_type", "native") == "opencode":
+                return
 
             model_id = agent.primary_model_id or agent.fallback_model_id
             if not model_id:
@@ -470,6 +472,8 @@ async def _heartbeat_tick():
 
             triggered = 0
             for agent in agents:
+                if getattr(agent, "agent_type", "native") == "opencode":
+                    continue
                 # Skip expired agents
                 if agent.is_expired:
                     continue
